@@ -293,7 +293,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                 }
             }
-            if (manageFollows) {
+            item(key = "manage-follows-dialog") {
+                if (manageFollows) {
                 Dialog(onDismissRequest = { manageFollows = false }) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2)
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(DS.RadiusL)).padding(dpx(18)),
@@ -319,6 +320,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         }
                         Text("DONE", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { manageFollows = false }.padding(8.dp))
                     }
+                }
                 }
             }
             if (hubSection == "Standings") item(key = "standings") {
