@@ -325,8 +325,8 @@ private fun CatTile(name: String, items: List<Item>, modifier: Modifier, onClick
             .background(Brush.linearGradient(listOf(tint, Surf)))
             .border(DS.FocusBorder, if (f) Accent2 else DS.Overlay1, shape)
             .onFocusChanged { f = it.isFocused }
-            .focusable()
             .clickable(onClick = onClick)
+            .focusable()
     ) {
         if (backdrop != null) AsyncImage(backdrop, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.5f)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Surf.copy(alpha = .96f), Surf.copy(alpha = .55f), Color.Transparent))))
