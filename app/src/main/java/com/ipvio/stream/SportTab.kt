@@ -81,6 +81,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         value = withContext(IO) { SportLogic.fetchScoreboards() }
     }
     val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
+    val enabledLeagues = remember(context) {
+        mutableStateOf(context.getSharedPreferences("sports_hub", 0)
+            .getStringSet("enabled_leagues", scoreLeagues.toSet())?.toSet() ?: scoreLeagues.toSet())
+    }
+    val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
+    var manageLeagues by remember { mutableStateOf(false) }
     var selectedScoreLeague by remember { mutableStateOf("All") }
     var selectedStandingsLeague by remember { mutableStateOf("NFL") }
     var standingsRefresh by remember { mutableIntStateOf(0) }
@@ -108,7 +114,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         context.getSharedPreferences("sports_hub", 0).edit().putStringSet("favorite_teams", next).apply()
     }
     val visibleScoreGames = scoreGames.filter { game ->
-        (selectedScoreLeague == "All" || game.league == selectedScoreLeague) &&
+        (if (selectedScoreLeague == "All") activeScoreLeagues.contains(game.league) else game.league == selectedScoreLeague) &&
             (!liveOnlyScores || game.state.equals("in", true)) &&
             (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 })
     }
@@ -179,6 +185,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             }
                         }
                         Spacer(Modifier.weight(1f))
+                        Text("EDIT LEAGUES", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2).clickable { manageLeagues = true }.padding(horizontal = dpx(12), vertical = dpx(9)))
                         Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2).clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(9)))
                         Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2).clickable { tick++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
@@ -204,7 +212,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     item { FilterPill("With a channel", channelOnlyScores) { channelOnlyScores = !channelOnlyScores } }
                     item { FilterPill("● Live", liveOnlyScores) { liveOnlyScores = !liveOnlyScores } }
                     item { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All"; selectedPreviewGameId = null } }
-                    items(scoreLeagues, key = { "league-chip-" + it }) { league ->
+                    items(activeScoreLeagues, key = { "league-chip-" + it }) { league ->
                         FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league; selectedPreviewGameId = null }
                     }
                 }
@@ -281,7 +289,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 .clickable { standingsRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(8)))
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                        items(scoreLeagues, key = { "standings-" + it }) { league ->
+                        items(activeScoreLeagues, key = { "standings-" + it }) { league ->
                             FilterPill(league, selectedStandingsLeague == league) { selectedStandingsLeague = league }
                         }
                     }
@@ -368,13 +376,57 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 }
             }
         }
+        if (manageLeagues) {
+            Dialog(onDismissRequest = { manageLeagues = false }) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+                    Text("Edit sports leagues", color = Color.White, fontSize = spx(21), fontWeight = FontWeight.Bold)
+                    Text("Choose which leagues appear in Scores, My Teams, and Standings.", color = Muted, fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                        Text("Select all", color = Accent2, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                enabledLeagues.value = scoreLeagues.toSet()
+                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toSet()).apply()
+                            }.padding(vertical = dpx(8)))
+                        Text("Clear all", color = Accent2, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                enabledLeagues.value = emptySet()
+                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", emptySet()).apply()
+                                selectedScoreLeague = "All"
+                            }.padding(vertical = dpx(8)))
+                    }
+                    LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+                        items(scoreLeagues, key = { "edit-league-" + it }) { league ->
+                            val checked = enabledLeagues.value.contains(league)
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                .clickable {
+                                    val next = enabledLeagues.value.toMutableSet().apply {
+                                        if (!add(league)) remove(league)
+                                    }
+                                    enabledLeagues.value = next
+                                    context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", next).apply()
+                                    if (!next.contains(selectedScoreLeague)) selectedScoreLeague = "All"
+                                    if (!next.contains(selectedStandingsLeague)) selectedStandingsLeague = next.firstOrNull() ?: "NFL"
+                                    if (!next.contains(selectedFollowLeague)) selectedFollowLeague = next.firstOrNull() ?: "NFL"
+                                }.padding(horizontal = dpx(10), vertical = dpx(11)),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (checked) "☑" else "☐", color = if (checked) Accent2 else Muted, fontSize = 21.sp)
+                                Text(league, color = Color.White, fontSize = 15.sp, modifier = Modifier.padding(start = dpx(12)))
+                            }
+                        }
+                    }
+                    Text("DONE", color = Accent2, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.End).clickable { manageLeagues = false }.padding(8.dp))
+                }
+            }
+        }
         if (manageFollows) {
             Dialog(onDismissRequest = { manageFollows = false }) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Text("Manage followed teams", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                        items(scoreLeagues, key = { "follow-league-" + it }) { league ->
+                        items(activeScoreLeagues, key = { "follow-league-" + it }) { league ->
                             FilterPill(league, selectedFollowLeague == league) { selectedFollowLeague = league }
                         }
                     }
