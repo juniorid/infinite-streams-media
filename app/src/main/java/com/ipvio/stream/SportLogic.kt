@@ -149,7 +149,8 @@ object SportLogic {
         val id: String, val league: String, val name: String, val state: String,
         val detail: String, val home: String, val away: String,
         val homeScore: String, val awayScore: String,
-        val homeLogo: String, val awayLogo: String, val status: String
+        val homeLogo: String, val awayLogo: String, val status: String,
+        val periodScores: String = "", val lastPlay: String = "", val clock: String = "", val period: String = ""
     )
 
     private data class ScoreFeed(val label: String, val path: String)
@@ -303,7 +304,15 @@ object SportLogic {
                                 awayScore = away.optString("score", "—"),
                                 homeLogo = homeTeam.optString("logo"),
                                 awayLogo = awayTeam.optString("logo"),
-                                status = status
+                                status = status,
+                                periodScores = listOf(away, home).map { competitor ->
+                                    val periods = competitor.optJSONArray("linescores") ?: org.json.JSONArray()
+                                    (0 until periods.length()).mapNotNull { idx -> periods.optJSONObject(idx)?.optString("displayValue")?.takeIf { it.isNotBlank() } }
+                                        .joinToString("  |  ")
+                                }.let { scores -> if (scores.any { it.isNotBlank() }) "Away: ${scores[0]}   Home: ${scores[1]}" else "" },
+                                lastPlay = comp.optJSONObject("situation")?.optJSONObject("lastPlay")?.optString("text").orEmpty(),
+                                clock = event.optJSONObject("status")?.optString("displayClock").orEmpty(),
+                                period = event.optJSONObject("status")?.optString("period").orEmpty()
                             )
                         }
                     } catch (_: Exception) {
