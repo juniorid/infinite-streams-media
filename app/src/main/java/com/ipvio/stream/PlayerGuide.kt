@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.nativeKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -554,7 +553,7 @@ private fun GuideRow(
                     if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onClose(); true }
                     else if (ev.type == KeyEventType.KeyDown && (ev.key == Key.Enter || ev.key == Key.NumPadEnter || ev.key == Key.DirectionCenter)) {
                         // A single remote OK always previews. Full screen is reserved for an intentional touch double-tap.
-                        if (ev.nativeKeyEvent.repeatCount == 0) onPreview()
+                        onPreview()
                         true
                     } else false
                 }
