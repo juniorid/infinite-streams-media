@@ -79,13 +79,15 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var selectedScoreLeague by remember { mutableStateOf("All") }
     val visibleScoreGames = if (selectedScoreLeague == "All") scoreGames else scoreGames.filter { it.league == selectedScoreLeague }
     fun playScoreGame(game: SportLogic.ScoreGame) {
-        val targetCat = SportLogic.categoryOf("", game.league)
-        val matches = channels.filter { SportLogic.categoryOf("", it.title + " " + it.group) == targetCat }
+        val ranked = channels.map { it to SportLogic.scoreChannelRank(game, it) }
+            .filter { it.second >= 5 }
+            .sortedByDescending { it.second }
+        val matches = ranked.map { it.first }
         val channel = matches.firstOrNull()
         if (channel == null) {
-            Toast.makeText(context, "No matching sports channel found in your playlist. Add a channel for " + game.league + ".", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "No clearly matching " + game.league + " channel was found. Choose a sports channel from your playlist instead.", Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(context, "Opening " + channel.title + ". Game availability depends on your IPTV playlist.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Opening " + channel.title + ". Check that your provider carries this game.", Toast.LENGTH_LONG).show()
             onPlay(channel, matches)
         }
     }
