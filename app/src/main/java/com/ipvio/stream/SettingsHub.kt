@@ -81,8 +81,15 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
     }
     val cardFocus = remember { List(CATS.size) { if (it == 0) ContentFocus.req else FocusRequester() } }
     val backFocus = remember { FocusRequester() }
+    val pageTopRequester = remember { BringIntoViewRequester() }
+    val pageScrollScope = rememberCoroutineScope()
     BackHandler(enabled = page >= 0) { page = -1 }
     LaunchedEffect(page) {
+        // When a settings section opens, bring its heading back into view instead of
+        // leaving the parent settings list parked at the previous scroll position.
+        if (page >= 0) {
+            pageScrollScope.launch { runCatching { pageTopRequester.bringIntoView() } }
+        }
         runCatching { if (page < 0) cardFocus[last].requestFocus() else backFocus.requestFocus() }
     }
 
@@ -105,7 +112,7 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(18))) {
-                SettingsBack(Modifier.focusRequester(backFocus)) { page = -1 }
+                SettingsBack(Modifier.focusRequester(backFocus).bringIntoViewRequester(pageTopRequester)) { page = -1 }
                 Text(CATS[page].title, color = Color.White, fontSize = spx(36), fontWeight = FontWeight.ExtraBold)
             }
             // Unter dem letzten anwählbaren Element stehen oft noch Hinweise: Runter am Ende holt sie ins Bild
