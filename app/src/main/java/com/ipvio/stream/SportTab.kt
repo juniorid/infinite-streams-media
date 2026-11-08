@@ -542,7 +542,6 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
 }
 
 @Composable
-@Composable
 private fun ScoreQuarterTable(game: SportLogic.ScoreGame) {
     val count = maxOf(game.awayPeriodScores.size, game.homePeriodScores.size)
     val labels = (1..count).map { "Q$it" } + "T"
@@ -562,15 +561,16 @@ private fun ScoreQuarterTable(game: SportLogic.ScoreGame) {
     }
 }
 
+@Composable
 private fun ScoreTeamRow(name: String, logo: String, score: String, record: String = "") {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(dpx(38)).clip(RoundedCornerShape(DS.RadiusXs)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
             if (logo.isNotBlank()) AsyncImage(logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
             else Text(name.take(2).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (record.isNotBlank()) Text(record, color = Muted, fontSize = 10.sp, maxLines = 1)
+            if (record.isNotBlank()) Text("($record)", color = Muted, fontSize = 11.sp, maxLines = 1)
         }
         Text(score, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
     }
