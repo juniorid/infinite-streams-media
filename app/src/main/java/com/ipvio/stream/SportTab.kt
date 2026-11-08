@@ -93,6 +93,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var selectedPreviewGameId by remember { mutableStateOf<String?>(null) }
     var manageFollows by remember { mutableStateOf(false) }
     var selectedFollowLeague by remember { mutableStateOf("NFL") }
+    var multiViewChannels by remember { mutableStateOf<List<Item>>(emptyList()) }
+    var showMultiViewPicker by remember { mutableStateOf(false) }
     val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
     fun toggleFavorite(team: String) {
         val next = favoriteTeams.value.toMutableSet().apply { if (!add(team)) remove(team) }
@@ -319,17 +321,89 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
             if (hubSection == "Multi-View") item(key = "multi-view") {
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Text("Quick view", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                    Text("Choose a league to collect its games, then open a channel for each matchup. Simultaneous multi-screen playback depends on device support and is not enabled yet.", color = Muted)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) { items(scoreLeagues, key = { "quick-" + it }) { league -> FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league } } }
-                    val leagueGames = scoreGames.filter { selectedScoreLeague == "All" || it.league == selectedScoreLeague }
-                    if (leagueGames.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10))) { items(leagueGames, key = { "quick-game-" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) } }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Multi-View", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Text("${multiViewChannels.size}/4 screens", color = Accent2, fontWeight = FontWeight.Bold)
+                        Text("ADD SCREEN", color = if (multiViewChannels.size < 4) Color.White else Muted, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2).clickable { if (multiViewChannels.size < 4) showMultiViewPicker = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                    }
+                    Text("Add up to four channels. Only the first screen plays audio.", color = Muted, fontSize = 13.sp)
+                    if (multiViewChannels.isEmpty()) Text("Select ADD SCREEN to choose your first channel.", color = Muted)
+                    else {
+                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            val gap = dpx(8)
+                            val cellWidth = (maxWidth - gap) / 2
+                            androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                                multiViewChannels.chunked(2).forEachIndexed { rowIndex, rowChannels ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                        rowChannels.forEachIndexed { colIndex, channel ->
+                                            val index = rowIndex * 2 + colIndex
+                                            Column(Modifier.width(cellWidth).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xFF101827)).padding(dpx(5))) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(channel.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                                    Text("×", color = Accent2, fontSize = 20.sp, modifier = Modifier.clickable { multiViewChannels = multiViewChannels.filterIndexed { i, _ -> i != index } }.padding(horizontal = dpx(6)))
+                                                }
+                                                SecondStream(channel, split = true, audioOn = index == 0, cropToFill = false, modifier = Modifier.fillMaxWidth().height(dpx(125)))
+                                            }
+                                        }
+                                        if (rowChannels.size == 1) Spacer(Modifier.width(cellWidth))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if (hubSection == "Scores" && nothing && slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "none") {
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Text("Keine Sendungen für diese Auswahl", color = Muted, fontSize = 18.sp)
                     FilterPill("Filter zurücksetzen", false) { sport = -1; win = 0 }
+                }
+            }
+        }
+        if (manageFollows) {
+            Dialog(onDismissRequest = { manageFollows = false }) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Text("Manage followed teams", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                        items(scoreLeagues, key = { "follow-league-" + it }) { league ->
+                            FilterPill(league, selectedFollowLeague == league) { selectedFollowLeague = league }
+                        }
+                    }
+                    val teams = scoreGames.filter { it.league == selectedFollowLeague }.flatMap { listOf(it.away, it.home) }.distinct().sorted()
+                    if (teams.isEmpty()) Text("No teams are currently listed for this league. Try another league or refresh scores.", color = Muted)
+                    else LazyColumn(Modifier.height(dpx(300)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
+                        items(teams, key = { "follow-team-" + it }) { team ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable { toggleFavorite(team) }.padding(dpx(10)),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text(team, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(if (favoriteTeams.value.contains(team)) "✓ FOLLOWING" else "+ FOLLOW", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    Text("DONE", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { manageFollows = false }.padding(8.dp))
+                }
+            }
+        }
+        if (showMultiViewPicker) {
+            Dialog(onDismissRequest = { showMultiViewPicker = false }) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+                    Text("Add a screen", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
+                    LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
+                        items(channels, key = { "multi-pick-" + it.id }) { channel ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable {
+                                multiViewChannels = (multiViewChannels + channel).take(4)
+                                showMultiViewPicker = false
+                            }.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                Text(channel.title, color = Color.White, modifier = Modifier.weight(1f))
+                                Text("ADD", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    Text("CANCEL", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { showMultiViewPicker = false }.padding(8.dp))
                 }
             }
         }
