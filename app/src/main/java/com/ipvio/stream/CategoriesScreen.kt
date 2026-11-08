@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusable
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -276,6 +277,7 @@ private fun CatListRow(
             .background(if (f) DS.Overlay4 else if (selected) DS.Overlay2 else Color.Transparent)
             .border(DS.Border, if (f) Accent2 else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .focusable()
             .onPreviewKeyEvent { k ->
                 if (k.type == KeyEventType.KeyDown && k.key == Key.DirectionRight && k.nativeKeyEvent.repeatCount == 0) { onRight(); true } else false
             }
@@ -323,6 +325,7 @@ private fun CatTile(name: String, items: List<Item>, modifier: Modifier, onClick
             .background(Brush.linearGradient(listOf(tint, Surf)))
             .border(DS.FocusBorder, if (f) Accent2 else DS.Overlay1, shape)
             .onFocusChanged { f = it.isFocused }
+            .focusable()
             .clickable(onClick = onClick)
     ) {
         if (backdrop != null) AsyncImage(backdrop, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.5f)
