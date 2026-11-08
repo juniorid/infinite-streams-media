@@ -532,7 +532,6 @@ private fun GuideRow(
         cleanEpg(raw.orEmpty()).let { l -> if (hidePast) l.filter { it.end > nowSec || CatchupLogic.canPlay(cu, it.start, it.end, nowSec) } else l }
     }
     val blockReqs = remember(entries) { HashMap<Long, FocusRequester>() }
-    var lastOkAt by remember(ch.id) { mutableLongStateOf(0L) }
     val from = winStart - 120 * 60L
     val to = winStart + (viewMin + 120) * 60L
     Row(Modifier.height(rowH).padding(vertical = 3.dp)) {
@@ -554,12 +553,8 @@ private fun GuideRow(
                 .onPreviewKeyEvent { ev ->
                     if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onClose(); true }
                     else if (ev.type == KeyEventType.KeyDown && (ev.key == Key.Enter || ev.key == Key.NumPadEnter || ev.key == Key.DirectionCenter)) {
-                        // Ignore OS key-repeat events: one held OK press must never be mistaken for a second click.
-                        if (ev.nativeKeyEvent.repeatCount == 0) {
-                            val now = System.currentTimeMillis()
-                            if (now - lastOkAt in 1..650L) { lastOkAt = 0L; onPick() }
-                            else { lastOkAt = now; onPreview() }
-                        }
+                        // A single remote OK always previews. Full screen is reserved for an intentional touch double-tap.
+                        if (ev.nativeKeyEvent.repeatCount == 0) onPreview()
                         true
                     } else false
                 }
