@@ -19,11 +19,14 @@ import java.io.RandomAccessFile
 object LiveSettings {
     private const val PREFS = "ipvio_livetv"
     val BUFFER_MB = listOf(256, 512, 1024, 2048)
+    val SEEK_STEPS = (5..30 step 5).toList()
 
     /** Live immer über den Puffer abspielen (Zurückspulen, Pause ohne Verlust). Aus = nur bei einer Aufnahme. */
     var timeshift by mutableStateOf(false)
         private set
     var bufferMb by mutableIntStateOf(512)
+        private set
+    var seekStepSeconds by mutableIntStateOf(30)
         private set
     /** Speicherort der Aufnahmen: Index in [Recorder.dirs]. */
     var recDir by mutableIntStateOf(0)
@@ -39,15 +42,17 @@ object LiveSettings {
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         timeshift = p.getBoolean("ts", false)
         bufferMb = p.getInt("mb", 512).takeIf { it in BUFFER_MB } ?: 512
+        seekStepSeconds = p.getInt("seek_step", 30).takeIf { it in SEEK_STEPS } ?: 30
         recDir = p.getInt("dir", 0).coerceAtLeast(0)
         recPad = p.getInt("pad", 3).coerceIn(0, 30)
     }
 
     private fun save(c: Context) = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-        .putBoolean("ts", timeshift).putInt("mb", bufferMb).putInt("dir", recDir).putInt("pad", recPad).apply()
+        .putBoolean("ts", timeshift).putInt("mb", bufferMb).putInt("seek_step", seekStepSeconds).putInt("dir", recDir).putInt("pad", recPad).apply()
 
     fun setTimeshift(c: Context, v: Boolean) { timeshift = v; save(c) }
     fun setBufferMb(c: Context, v: Int) { bufferMb = v; save(c) }
+    fun setSeekStep(c: Context, v: Int) { seekStepSeconds = v.coerceIn(5, 30).let { it - it % 5 }; save(c) }
     fun setRecDir(c: Context, v: Int) { recDir = v; save(c) }
     fun setRecPad(c: Context, v: Int) { recPad = v; save(c) }
 }
