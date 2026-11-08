@@ -117,9 +117,10 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
         ) {
             Text(raw = true, text = (if (audioOn) "♪ " else "") + item.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        if (selected) {
+        {
             Row(Modifier.align(Alignment.BottomCenter).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xCC000000)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (isPlaying) "Ⅱ PAUSE" else "▶ PLAY", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { isPlaying = !isPlaying; p.playWhenReady = isPlaying }.padding(horizontal = 8.dp, vertical = 5.dp))
+                if (selected) {
                 val stepMs = LiveSettings.seekStepSeconds * 1000L
                 val canBufferSeek = tap != null && tap.index.size() > 1 && !tap.closed
                 val canProviderSeek = tap == null && p.isCurrentMediaItemSeekable && p.duration > 0
@@ -143,6 +144,7 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
                         } else p.seekTo((p.currentPosition + stepMs).coerceAtMost(p.duration))
                     }.padding(horizontal = 8.dp, vertical = 5.dp))
                 if (!canTimeshift) Text(if (LiveSettings.timeshift) "Buffering DVR…" else "Enable DVR in Settings", color = Color.LightGray, fontSize = 10.sp)
+                }
             }
         }
         if (failed) Box(Modifier.fillMaxSize().background(Color(0xAA000000)), contentAlignment = Alignment.Center) {
