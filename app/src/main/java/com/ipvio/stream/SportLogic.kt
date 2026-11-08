@@ -103,4 +103,77 @@ object SportLogic {
             else -> start in tomorrow until dayAfter
         }
     }
+
+    // ESPN's public, undocumented scoreboard feeds. No API key is required; responses may change.
+    data class ScoreGame(
+        val id: String, val league: String, val name: String, val state: String,
+        val detail: String, val home: String, val away: String,
+        val homeScore: String, val awayScore: String,
+        val homeLogo: String, val awayLogo: String, val status: String
+    )
+
+    private data class ScoreFeed(val label: String, val path: String)
+
+    private val SCORE_FEEDS = listOf(
+        ScoreFeed("NFL", "football/nfl"),
+        ScoreFeed("College Football", "football/college-football"),
+        ScoreFeed("NBA", "basketball/nba"),
+        ScoreFeed("WNBA", "basketball/wnba"),
+        ScoreFeed("Men's College Basketball", "basketball/mens-college-basketball"),
+        ScoreFeed("MLB", "baseball/mlb"),
+        ScoreFeed("NHL", "hockey/nhl"),
+        ScoreFeed("MLS", "soccer/usa.1"),
+        ScoreFeed("Premier League", "soccer/eng.1"),
+        ScoreFeed("Champions League", "soccer/uefa.champions"),
+        ScoreFeed("UFC", "mma/ufc")
+    )
+
+    fun fetchScoreboards(): List<ScoreGame> {
+        val out = ArrayList<ScoreGame>()
+        for (feed in SCORE_FEEDS) {
+            try {
+                val connection = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/scoreboard")
+                    .openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.setRequestProperty("User-Agent", "InfiniteStreamsMedia/1.0")
+                try {
+                    if (connection.responseCode !in 200..299) continue
+                    val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                    val events = root.optJSONArray("events") ?: continue
+                    for (i in 0 until events.length()) {
+                        val event = events.optJSONObject(i) ?: continue
+                        val comp = event.optJSONArray("competitions")?.optJSONObject(0) ?: continue
+                        val competitors = comp.optJSONArray("competitors") ?: continue
+                        var home = org.json.JSONObject()
+                        var away = org.json.JSONObject()
+                        for (j in 0 until competitors.length()) {
+                            val team = competitors.optJSONObject(j) ?: continue
+                            if (team.optString("homeAway") == "home") home = team else away = team
+                        }
+                        val homeTeam = home.optJSONObject("team") ?: org.json.JSONObject()
+                        val awayTeam = away.optJSONObject("team") ?: org.json.JSONObject()
+                        val statusObj = event.optJSONObject("status")?.optJSONObject("type") ?: org.json.JSONObject()
+                        val status = statusObj.optString("description", statusObj.optString("name", "Scheduled"))
+                        out += ScoreGame(
+                            id = event.optString("id"),
+                            league = feed.label,
+                            name = event.optString("name"),
+                            state = statusObj.optString("state"),
+                            detail = statusObj.optString("shortDetail", event.optString("date")),
+                            home = homeTeam.optString("displayName", "Home"),
+                            away = awayTeam.optString("displayName", "Away"),
+                            homeScore = home.optString("score", "—"),
+                            awayScore = away.optString("score", "—"),
+                            homeLogo = homeTeam.optString("logo"),
+                            awayLogo = awayTeam.optString("logo"),
+                            status = status
+                        )
+                    }
+                } finally { connection.disconnect() }
+            } catch (_: Exception) { /* Keep other leagues available if one feed is unavailable. */ }
+        }
+        return out
+    }
+
 }
