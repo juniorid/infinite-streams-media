@@ -1102,7 +1102,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         second?.let { s2 ->
             SecondStream(
                 s2, dualSplit, audioOnSecond,
-                if (dualSplit) Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.5f)
+                modifier = if (dualSplit) Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.5f)
                 else pipModifier()
             )
         }
