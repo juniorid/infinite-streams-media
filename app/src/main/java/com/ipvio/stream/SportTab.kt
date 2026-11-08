@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -95,6 +96,9 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var selectedFollowLeague by remember { mutableStateOf("NFL") }
     var multiViewChannels by remember { mutableStateOf<List<Item>>(emptyList()) }
     var showMultiViewPicker by remember { mutableStateOf(false) }
+    var showMultiViewFullscreen by remember { mutableStateOf(false) }
+    var multiViewCategory by remember { mutableStateOf<String?>(null) }
+    val multiViewCategories = remember(live) { live.map { it.group.ifBlank { "Other" } }.distinct().sorted() }
     val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
     fun toggleFavorite(team: String) {
         val next = favoriteTeams.value.toMutableSet().apply { if (!add(team)) remove(team) }
@@ -165,7 +169,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(22))) {
                         listOf("Scores", "My teams", "Standings", "Multi-View").forEach { label ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(6))) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5)), modifier = Modifier.clickable { hubSection = label }) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5)), modifier = Modifier.clickable { hubSection = label; if (label == "Multi-View") showMultiViewFullscreen = true }) {
                                     Text(label, color = if (hubSection == label) Color.White else Muted, fontSize = spx(18), fontWeight = if (hubSection == label) FontWeight.Bold else FontWeight.Medium)
                                     if (label == "My teams" && scoreGames.any { it.state.equals("in", true) && (favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away)) }) Box(Modifier.size(dpx(9)).clip(RoundedCornerShape(50)).background(Color.Red))
                                 }
@@ -388,12 +392,21 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
         }
         if (showMultiViewPicker) {
+            val categoryChannels = live.filter { (it.group.ifBlank { "Other" }) == (multiViewCategory ?: multiViewCategories.firstOrNull()) }
             Dialog(onDismissRequest = { showMultiViewPicker = false }) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(10))) {
-                    Text("Add a screen", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
-                    LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
-                        items(channels, key = { "multi-pick-" + it.id }) { channel ->
+                    Text("Add a screen · Choose category", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                        items(multiViewCategories, key = { "multi-category-" + it }) { category ->
+                            FilterPill(category, (multiViewCategory ?: multiViewCategories.firstOrNull()) == category) { multiViewCategory = category }
+                        }
+                    }
+                    val availableChannels = categoryChannels.filterNot { channel -> multiViewChannels.any { it.id == channel.id } }
+                    if (availableChannels.isEmpty()) {
+                        Text("No channels in this category are available to add.", color = Muted)
+                    } else LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
+                        items(availableChannels, key = { "multi-pick-" + it.id }) { channel ->
                             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable {
                                 multiViewChannels = (multiViewChannels + channel).take(4)
                                 showMultiViewPicker = false
@@ -404,6 +417,57 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         }
                     }
                     Text("CANCEL", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { showMultiViewPicker = false }.padding(8.dp))
+                }
+            }
+        }
+        if (showMultiViewFullscreen) {
+            Dialog(
+                onDismissRequest = { showMultiViewFullscreen = false; hubSection = "Scores" },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Box(Modifier.fillMaxSize().background(Color.Black)) {
+                    if (multiViewChannels.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Add a channel to start Multi-View", color = Color.White, fontSize = spx(20))
+                        }
+                    } else {
+                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().padding(dpx(8))) {
+                            val gap = dpx(6)
+                            val columns = if (multiViewChannels.size == 1) 1 else 2
+                            val rows = (multiViewChannels.size + columns - 1) / columns
+                            val cellWidth = (maxWidth - gap * (columns - 1)) / columns
+                            val cellHeight = (maxHeight - gap * (rows - 1)) / rows
+                            androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+                                multiViewChannels.chunked(columns).forEachIndexed { rowIndex, rowChannels ->
+                                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                        rowChannels.forEachIndexed { colIndex, channel ->
+                                            val index = rowIndex * columns + colIndex
+                                            Box(Modifier.width(cellWidth).height(cellHeight).clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF101827))) {
+                                                SecondStream(channel, split = true, audioOn = index == 0, cropToFill = false, modifier = Modifier.fillMaxSize())
+                                                Text(channel.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                                    modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0x99000000)).padding(horizontal = 7.dp, vertical = 4.dp))
+                                                Text("×", color = Color.White, fontSize = 20.sp,
+                                                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(RoundedCornerShape(50)).background(Color(0x99000000)).clickable {
+                                                        multiViewChannels = multiViewChannels.filterIndexed { i, _ -> i != index }
+                                                    }.padding(horizontal = 8.dp, vertical = 2.dp))
+                                            }
+                                        }
+                                        if (rowChannels.size < columns) Spacer(Modifier.width(cellWidth))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Row(Modifier.align(Alignment.BottomEnd).padding(dpx(14)), horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                        Text("ADD SCREEN", color = Color.White, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(Accent1).clickable {
+                                if (multiViewChannels.size < 4) { multiViewCategory = null; showMultiViewPicker = true }
+                            }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                        Text("DONE", color = Color.White, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay3).clickable {
+                                showMultiViewFullscreen = false; hubSection = "Scores"
+                            }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                    }
                 }
             }
         }
