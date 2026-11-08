@@ -58,7 +58,7 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
         val lc = DefaultLoadControl.Builder().setBufferDurationsMs(4_000, 15_000, 1_000, 2_000).build()
         ExoPlayer.Builder(ctx, SoftAudio.factory(ctx))
             .setLoadControl(lc)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx).setDataSourceFactory(DefaultDataSource.Factory(ctx, http)))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx).setDataSourceFactory(TapAwareDataSource.Factory(DefaultDataSource.Factory(ctx, http))))
             .build()
             .also {
                 it.addListener(object : Player.Listener {
@@ -67,6 +67,12 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
                 })
             }
     }
+    LiveSettings.init(ctx)
+    val tap = remember(item.url, LiveSettings.timeshift) {
+        if (LiveSettings.timeshift && TapLogic.tappable(item.url)) LiveTaps.open(ctx, item.url) else null
+    }
+    var tapBaseMs by remember(item.url) { mutableStateOf(0L) }
+    DisposableEffect(tap) { onDispose { tap?.release() } }
     DisposableEffect(Unit) { onDispose { runCatching { p.release() } } }
     // Auflösung begrenzen: im kleinen Fenster reicht SD, geteilt höchstens 720p
     LaunchedEffect(split) {
@@ -74,9 +80,19 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
             .setMaxVideoSize(if (split) 1280 else 854, if (split) 720 else 480)
             .build()
     }
-    LaunchedEffect(item.url) {
+    LaunchedEffect(item.url, tap) {
         failed = false
-        if (!openStream(p, item.url, C.TIME_UNSET)) failed = true
+        val source = if (tap != null) {
+            repeat(40) {
+                if (tap.index.size() > 0 && tap.nowMs() >= 2500) return@repeat
+                kotlinx.coroutines.delay(250)
+            }
+            val target = (tap.nowMs() - 2000).coerceAtLeast(tap.oldestMs())
+            val byte = if (tap.index.size() == 0) tap.start else tap.index.byteAt(target)
+            tapBaseMs = tap.index.msAt(byte)
+            "tap://${tap.id}/$byte.ts"
+        } else item.url
+        if (!openStream(p, source, if (tap != null) 0L else C.TIME_UNSET)) failed = true
     }
     LaunchedEffect(audioOn) { p.volume = if (audioOn) 1f else 0f }
     var isPlaying by remember { mutableStateOf(true) }
@@ -103,10 +119,29 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
         if (selected) {
             Row(Modifier.align(Alignment.BottomCenter).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xCC000000)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (isPlaying) "Ⅱ PAUSE" else "▶ PLAY", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { isPlaying = !isPlaying; p.playWhenReady = isPlaying }.padding(horizontal = 8.dp, vertical = 5.dp))
-                val canTimeshift = p.isCurrentMediaItemSeekable && p.duration > 0
-                Text("−30s", color = if (canTimeshift) Color.White else Color.Gray, fontSize = 12.sp, modifier = Modifier.clickable(enabled = canTimeshift) { p.seekTo((p.currentPosition - 30_000L).coerceAtLeast(0L)) }.padding(horizontal = 8.dp, vertical = 5.dp))
-                Text("+30s", color = if (canTimeshift) Color.White else Color.Gray, fontSize = 12.sp, modifier = Modifier.clickable(enabled = canTimeshift) { p.seekTo((p.currentPosition + 30_000L).coerceAtMost(p.duration)) }.padding(horizontal = 8.dp, vertical = 5.dp))
-                if (!canTimeshift) Text("No DVR", color = Color.LightGray, fontSize = 10.sp)
+                val stepMs = LiveSettings.seekStepSeconds * 1000L
+                val canBufferSeek = tap != null && tap.index.size() > 1 && !tap.closed
+                val canProviderSeek = tap == null && p.isCurrentMediaItemSeekable && p.duration > 0
+                val canTimeshift = canBufferSeek || canProviderSeek
+                Text("−${LiveSettings.seekStepSeconds}s", color = if (canTimeshift) Color.White else Color.Gray, fontSize = 12.sp,
+                    modifier = Modifier.clickable(enabled = canTimeshift) {
+                        if (canBufferSeek) {
+                            val target = (tapBaseMs + p.currentPosition - stepMs).coerceAtLeast(tap!!.oldestMs())
+                            val byte = tap.index.byteAt(target)
+                            tapBaseMs = tap.index.msAt(byte)
+                            openStream(p, "tap://${tap.id}/$byte.ts", 0L)
+                        } else p.seekTo((p.currentPosition - stepMs).coerceAtLeast(0L))
+                    }.padding(horizontal = 8.dp, vertical = 5.dp))
+                Text("+${LiveSettings.seekStepSeconds}s", color = if (canTimeshift) Color.White else Color.Gray, fontSize = 12.sp,
+                    modifier = Modifier.clickable(enabled = canTimeshift) {
+                        if (canBufferSeek) {
+                            val target = (tapBaseMs + p.currentPosition + stepMs).coerceAtMost(tap!!.nowMs() - 1500)
+                            val byte = tap.index.byteAt(target)
+                            tapBaseMs = tap.index.msAt(byte)
+                            openStream(p, "tap://${tap.id}/$byte.ts", 0L)
+                        } else p.seekTo((p.currentPosition + stepMs).coerceAtMost(p.duration))
+                    }.padding(horizontal = 8.dp, vertical = 5.dp))
+                if (!canTimeshift) Text(if (LiveSettings.timeshift) "Buffering DVR…" else "Enable DVR in Settings", color = Color.LightGray, fontSize = 10.sp)
             }
         }
         if (failed) Box(Modifier.fillMaxSize().background(Color(0xAA000000)), contentAlignment = Alignment.Center) {
