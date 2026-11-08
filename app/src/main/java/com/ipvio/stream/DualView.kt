@@ -50,6 +50,7 @@ import androidx.media3.ui.PlayerView
 internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFill: Boolean = false, selected: Boolean = false, onSelect: () -> Unit = {}, modifier: Modifier) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
+    var isPlaying by remember { mutableStateOf(true) }
     val p = remember {
         val http = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
@@ -63,7 +64,8 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
             .also {
                 it.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) { failed = true }
-                    override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_READY) failed = false }
+                    override fun onPlaybackStateChanged(state: Int) { if (state == Player.STATE_READY) { failed = false; if (!it.isPlaying) it.playWhenReady = true } }
+                    override fun onIsPlayingChanged(playing: Boolean) { isPlaying = playing }
                 })
             }
     }
@@ -96,8 +98,6 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
         if (!openStream(p, source, if (tap != null) 0L else C.TIME_UNSET)) failed = true
     }
     LaunchedEffect(audioOn) { p.volume = if (audioOn) 1f else 0f }
-    var isPlaying by remember { mutableStateOf(true) }
-    LaunchedEffect(p) { isPlaying = p.isPlaying }
     val shape = RoundedCornerShape(if (split) 0.dp else 10.dp)
     Box(modifier.clip(shape).background(Color.Black).border(if (selected) 3.dp else if (split) 0.dp else 2.dp, if (selected) Accent2 else Color(0x66FFFFFF), shape).clickable { onSelect() }) {
         AndroidView(
