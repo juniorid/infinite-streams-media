@@ -90,6 +90,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var channelOnlyScores by remember { mutableStateOf(false) }
     var hubSection by remember { mutableStateOf("Scores") }
     var channelPickerGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
+    var selectedPreviewGameId by remember { mutableStateOf<String?>(null) }
     val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
     fun toggleFavorite(team: String) {
         val next = favoriteTeams.value.toMutableSet().apply { if (!add(team)) remove(team) }
@@ -176,44 +177,49 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                 }
             }
-            item(key = "featured-score") {
-                val featured = visibleScoreGames.firstOrNull { it.state.equals("in", true) } ?: visibleScoreGames.firstOrNull()
+            if (hubSection == "Scores") item(key = "featured-score") {
+                val featured = visibleScoreGames.firstOrNull { it.id == selectedPreviewGameId }
+                    ?: visibleScoreGames.firstOrNull { it.state.equals("in", true) }
+                    ?: visibleScoreGames.firstOrNull()
                 if (featured != null) {
-                    Row(Modifier.fillMaxWidth().height(dpx(214)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
-                        Column(Modifier.weight(1.05f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
-                            .background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35), Color(0xFF29204A))))
-                            .clickable { playScoreGame(featured) }.padding(dpx(18)),
-                            verticalArrangement = Arrangement.SpaceBetween) {
-                            Text(if (featured.state.equals("in", true)) "● LIVE NOW" else "FEATURED GAME", color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                            Column(verticalArrangement = Arrangement.spacedBy(dpx(9))) {
-                                Text(featured.league, color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                Text(featured.away + "  vs  " + featured.home, color = Color.White, fontSize = spx(23), fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(featured.detail.ifBlank { featured.status }, color = Muted, fontSize = 13.sp)
+                    val previewChannel = channelsForGame(featured).firstOrNull()
+                    Row(Modifier.fillMaxWidth().height(dpx(238)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+                        Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM)).background(Color.Black)) {
+                            if (previewChannel != null) {
+                                SecondStream(previewChannel, split = false, audioOn = true, modifier = Modifier.fillMaxSize())
+                            } else {
+                                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35)))), contentAlignment = Alignment.Center) {
+                                    Text("No matching stream found for this game", color = Color.White, fontSize = 14.sp)
+                                }
                             }
-                            Text("Tap to find a matching channel  ›", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(if (featured.state.equals("in", true)) "● LIVE PREVIEW" else "GAME PREVIEW",
+                                color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.align(Alignment.TopStart).padding(dpx(10)).clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0x99000000)).padding(horizontal = dpx(9), vertical = dpx(5)))
                         }
                         Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
                             .background(Color(0xCC17243D)).border(1.dp, Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM)).padding(dpx(18)),
                             verticalArrangement = Arrangement.SpaceEvenly) {
                             Text(featured.league.uppercase(), color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(featured.name, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             ScoreTeamRow(featured.away, featured.awayLogo, featured.awayScore)
                             ScoreTeamRow(featured.home, featured.homeLogo, featured.homeScore)
-                            Text(featured.status, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(featured.detail.ifBlank { featured.status }, color = Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 } else {
                     Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
-                        Text(if (scoreGames.isEmpty()) "Live scores are temporarily unavailable" else "No games listed for this league", color = Muted, fontSize = 14.sp)
+                        Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
                     }
                 }
             }
-            item(key = "score-filters") {
+            if (hubSection == "Scores") item(key = "score-filters") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(9)), contentPadding = PaddingValues(vertical = dpx(4))) {
                     item { FilterPill("With a channel", channelOnlyScores) { channelOnlyScores = !channelOnlyScores } }
                     item { FilterPill("● Live", liveOnlyScores) { liveOnlyScores = !liveOnlyScores } }
-                    item { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
+                    item { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All"; selectedPreviewGameId = null } }
                     items(scoreLeagues, key = { "league-chip-" + it }) { league ->
-                        FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league }
+                        FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league; selectedPreviewGameId = null }
                     }
                 }
             }
@@ -225,7 +231,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     if (visibleScoreGames.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { selectedPreviewGameId = game.id }, onLongClick = { chooseScoreChannel(game) }) }
                         }
                     } else {
                         Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
