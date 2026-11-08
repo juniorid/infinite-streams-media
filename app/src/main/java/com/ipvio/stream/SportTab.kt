@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -99,6 +101,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var showMultiViewFullscreen by remember { mutableStateOf(false) }
     var selectedMultiViewChannelId by remember { mutableStateOf<String?>(null) }
     var multiViewCategory by remember { mutableStateOf<String?>(null) }
+    var multiViewCategoryMenu by remember { mutableStateOf(false) }
     val multiViewCategories = remember(live) { live.map { it.group.ifBlank { "Other" } }.distinct().sorted() }
     val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
     fun toggleFavorite(team: String) {
@@ -451,9 +454,23 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(10))) {
                     Text("Add a screen · Choose category", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                        items(multiViewCategories, key = { "multi-category-" + it }) { category ->
-                            FilterPill(category, (multiViewCategory ?: multiViewCategories.firstOrNull()) == category) { multiViewCategory = category }
+                    Box {
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                .background(DS.Overlay3).clickable { multiViewCategoryMenu = true }
+                                .padding(horizontal = dpx(14), vertical = dpx(12)),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(multiViewCategory ?: multiViewCategories.firstOrNull() ?: "No categories", color = Color.White, modifier = Modifier.weight(1f))
+                            Text("▾", color = Accent2, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        }
+                        DropdownMenu(expanded = multiViewCategoryMenu, onDismissRequest = { multiViewCategoryMenu = false }) {
+                            multiViewCategories.forEach { category ->
+                                DropdownMenuItem(
+                                    text = { Text(category) },
+                                    onClick = { multiViewCategory = category; multiViewCategoryMenu = false }
+                                )
+                            }
                         }
                     }
                     val availableChannels = categoryChannels.filterNot { channel -> multiViewChannels.any { it.id == channel.id } }
