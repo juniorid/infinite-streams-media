@@ -391,35 +391,6 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 }
             }
         }
-        if (showMultiViewPicker) {
-            val categoryChannels = live.filter { (it.group.ifBlank { "Other" }) == (multiViewCategory ?: multiViewCategories.firstOrNull()) }
-            Dialog(onDismissRequest = { showMultiViewPicker = false }) {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
-                    verticalArrangement = Arrangement.spacedBy(dpx(10))) {
-                    Text("Add a screen · Choose category", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                        items(multiViewCategories, key = { "multi-category-" + it }) { category ->
-                            FilterPill(category, (multiViewCategory ?: multiViewCategories.firstOrNull()) == category) { multiViewCategory = category }
-                        }
-                    }
-                    val availableChannels = categoryChannels.filterNot { channel -> multiViewChannels.any { it.id == channel.id } }
-                    if (availableChannels.isEmpty()) {
-                        Text("No channels in this category are available to add.", color = Muted)
-                    } else LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
-                        items(availableChannels, key = { "multi-pick-" + it.id }) { channel ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable {
-                                multiViewChannels = (multiViewChannels + channel).take(4)
-                                showMultiViewPicker = false
-                            }.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
-                                Text(channel.title, color = Color.White, modifier = Modifier.weight(1f))
-                                Text("ADD", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                        }
-                    }
-                    Text("CANCEL", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { showMultiViewPicker = false }.padding(8.dp))
-                }
-            }
-        }
         if (showMultiViewFullscreen) {
             Dialog(
                 onDismissRequest = { showMultiViewFullscreen = false; hubSection = "Scores" },
@@ -468,6 +439,35 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 showMultiViewFullscreen = false; hubSection = "Scores"
                             }.padding(horizontal = dpx(14), vertical = dpx(10)))
                     }
+                }
+            }
+        }
+        if (showMultiViewPicker) {
+            val categoryChannels = live.filter { (it.group.ifBlank { "Other" }) == (multiViewCategory ?: multiViewCategories.firstOrNull()) }
+            Dialog(onDismissRequest = { showMultiViewPicker = false }) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+                    Text("Add a screen · Choose category", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                        items(multiViewCategories, key = { "multi-category-" + it }) { category ->
+                            FilterPill(category, (multiViewCategory ?: multiViewCategories.firstOrNull()) == category) { multiViewCategory = category }
+                        }
+                    }
+                    val availableChannels = categoryChannels.filterNot { channel -> multiViewChannels.any { it.id == channel.id } }
+                    if (availableChannels.isEmpty()) {
+                        Text("No channels in this category are available to add.", color = Muted)
+                    } else LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
+                        items(availableChannels, key = { "multi-pick-" + it.id }) { channel ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable {
+                                multiViewChannels = (multiViewChannels + channel).take(4)
+                                showMultiViewPicker = false
+                            }.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                Text(channel.title, color = Color.White, modifier = Modifier.weight(1f))
+                                Text("ADD", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    Text("CANCEL", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { showMultiViewPicker = false }.padding(8.dp))
                 }
             }
         }
