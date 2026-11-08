@@ -1,0 +1,52 @@
+name: Import IPVIO source and build APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Infinite Streams Media
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Import upstream player source
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL https://codeload.github.com/Emrodev/IPVIO-Stream/tar.gz/refs/heads/main -o /tmp/upstream.tar.gz
+          mkdir -p /tmp/upstream
+          tar -xzf /tmp/upstream.tar.gz --strip-components=1 -C /tmp/upstream
+          rsync -a --delete --exclude='.git' --exclude='.github/workflows/import-upstream-build.yml' /tmp/upstream/ ./
+          chmod +x ./gradlew
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Import IPVIO Stream source as Infinite Streams Media base"
+            git push
+          fi
+
+      - name: Run unit tests and build debug APK
+        run: ./gradlew test assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: infinite-streams-media-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
