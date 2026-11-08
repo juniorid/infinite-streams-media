@@ -482,8 +482,6 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
 }
 
 @Composable
-
-@Composable
 private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?) {
     Row(Modifier.fillMaxWidth().height(dpx(310)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
         Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM)).background(Color.Black)) {
@@ -511,6 +509,7 @@ private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?)
     }
 }
 
+@Composable
 private fun ScoreQuarterTable(game: SportLogic.ScoreGame) {
     val count = maxOf(game.awayPeriodScores.size, game.homePeriodScores.size)
     val labels = (1..count).map { "Q$it" } + "T"
