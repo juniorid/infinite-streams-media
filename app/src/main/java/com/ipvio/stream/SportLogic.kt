@@ -82,6 +82,45 @@ object SportLogic {
     val OTHER: Int get() = CATS.size
     fun catName(i: Int): String = CATS.getOrNull(i)?.name ?: "Sonstige"
 
+    /**
+     * Rank a playlist channel for a particular scoreboard event.
+     * Generic channels such as FOX One / ESPN are deliberately not accepted as a match
+     * unless their title or group actually identifies the sport or one of the teams.
+     */
+    fun scoreChannelRank(game: ScoreGame, channel: Item): Int {
+        val text = (channel.title + " " + channel.group).lowercase()
+        val leagueTerms = when (game.league) {
+            "NFL" -> listOf("nfl", "american football", "football", "gridiron")
+            "College Football" -> listOf("ncaa football", "college football", "ncaaf")
+            "NBA" -> listOf("nba", "basketball")
+            "WNBA" -> listOf("wnba", "basketball")
+            "Men's College Basketball" -> listOf("ncaa basketball", "college basketball", "ncaab", "basketball")
+            "MLB" -> listOf("mlb", "baseball")
+            "NHL" -> listOf("nhl", "ice hockey", "hockey", "eishockey")
+            "MLS" -> listOf("mls", "major league soccer", "soccer")
+            "Premier League" -> listOf("premier league", "epl", "english football", "soccer")
+            "Champions League" -> listOf("champions league", "uefa", "soccer")
+            "UFC" -> listOf("ufc", "mma", "mixed martial arts")
+            "Tennis" -> listOf("tennis", "atp", "wta")
+            "Golf" -> listOf("golf", "pga")
+            "Formula 1" -> listOf("formula 1", "formula one", "f1", "motorsport")
+            "Cricket" -> listOf("cricket", "icc")
+            else -> emptyList()
+        }
+        var rank = 0
+        for (term in leagueTerms) {
+            if (text.contains(term)) rank = maxOf(rank, if (term == "basketball" || term == "soccer" || term == "football" || term == "hockey" || term == "motorsport") 2 else 5)
+        }
+        val teams = listOf(game.home, game.away).filter { it.isNotBlank() }
+        for (team in teams) {
+            val normalized = team.lowercase().replace(Regex("[^a-z0-9 ]"), " ").trim()
+            if (normalized.length >= 4 && text.contains(normalized)) rank = maxOf(rank, 8)
+            val words = normalized.split(Regex("\\s+")).filter { it.length >= 5 }
+            if (words.any { text.contains(it) }) rank = maxOf(rank, 6)
+        }
+        return rank
+    }
+
     /** Sportart: zuerst der Sendungstitel, dann Sendername und Kategorie des Senders; sonst „Sonstige“. */
     fun categoryOf(title: String, chText: String): Int {
         for ((i, c) in CATS.withIndex()) if (c.re.containsMatchIn(title)) return i
