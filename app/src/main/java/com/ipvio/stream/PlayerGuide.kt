@@ -49,6 +49,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -107,8 +109,9 @@ fun Guide(
     onArchive: (Item, EpgEntry) -> Unit = { _, _ -> },
     /** Alle Sender (für die Kategorien links); Standard = nur die übergebene Liste. */
     all: List<Item> = list,
-    /** Sender aus einer anderen Kategorie gewählt: mit dieser Liste weiterschalten. */
-    onPickIn: ((Item, List<Item>) -> Unit)? = null,
+    /** Preview keeps the guide open; full-screen selection closes it. */
+    onPreviewIn: ((Item, List<Item>) -> Unit)? = null,
+    onPreview: (Item) -> Unit = {},
     onPick: (Item) -> Unit
 ) {
     val ctx = LocalContext.current
@@ -142,9 +145,21 @@ fun Guide(
     val cats = remember(list, all, Library.favs.size, ChannelLists.lists.size, PlaylistStore.catOrder) { guideCategories(list, all) }
     var catIdx by remember { mutableIntStateOf(0) }
     var guideQuery by remember { mutableStateOf("") }
-    val categoryItems = cats.getOrNull(catIdx)?.items ?: list
-    val shown = remember(categoryItems, guideQuery) {
-        val q = guideQuery.trim()
+    val q = guideQuery.trim()
+    val filteredCats = remember(cats, q) {
+        if (q.isEmpty()) cats else cats.filter { c ->
+            c.name.contains(q, ignoreCase = true) || c.items.any { it.title.contains(q, ignoreCase = true) }
+        }.map { c ->
+            if (c.name.contains(q, ignoreCase = true)) c
+            else GuideCat(c.name, c.items.filter { it.title.contains(q, ignoreCase = true) }, c.icon)
+        }
+    }
+    LaunchedEffect(filteredCats, catIdx) {
+        if (filteredCats.isNotEmpty() && catIdx !in filteredCats.indices) catIdx = 0
+    }
+    val safeCatIdx = catIdx.coerceIn(0, (filteredCats.size - 1).coerceAtLeast(0))
+    val categoryItems = filteredCats.getOrNull(safeCatIdx)?.items ?: emptyList()
+    val shown = remember(categoryItems, q) {
         if (q.isEmpty()) categoryItems else categoryItems.filter { it.title.contains(q, ignoreCase = true) }
     }
     val catReq = remember { FocusRequester() }
@@ -284,12 +299,11 @@ fun Guide(
                     Modifier.weight(1f).fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    itemsIndexed(cats) { ci, c ->
-                        GuideCatRow(c, ci == catIdx, if (ci == catIdx) Modifier.focusRequester(catReq) else Modifier,
-                            onFocus = { inCats = true; inBlock = false; if (catIdx != ci) { catIdx = ci; guideQuery = "" } }, onLeft = onClose) {
+                    itemsIndexed(filteredCats) { ci, c ->
+                        GuideCatRow(c, ci == safeCatIdx, if (ci == catIdx) Modifier.focusRequester(catReq) else Modifier,
+                            onFocus = { inCats = true; inBlock = false; if (catIdx != ci) catIdx = ci }, onLeft = onClose) {
                                 // A touch/OK press must select this category even if the row did not gain TV focus first.
                                 catIdx = ci
-                                guideQuery = ""
                                 inCats = false
                                 inBlock = false
                                 scope.launch {
@@ -306,7 +320,7 @@ fun Guide(
                 SideEffect { if (viewMin != vm) viewMin = vm }
                 Column(Modifier.fillMaxSize()) {
                     Row(Modifier.height(34.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(raw = true, text = cats.getOrNull(catIdx)?.name?.let { Lang.tr(it) } ?: "", color = Muted, fontSize = 13.sp,
+                        Text(raw = true, text = filteredCats.getOrNull(safeCatIdx)?.name?.let { Lang.tr(it) } ?: "", color = Muted, fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(208.dp).padding(start = 6.dp))
                         Box(Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
                             // nur die sichtbaren Zeitmarken (mit Archiv reicht das Raster Tage zurück)
@@ -341,7 +355,8 @@ fun Guide(
                                 // Links aus der Senderspalte: zu den Kategorien (früher: schließen)
                                 onClose = { if (!runCatching { catReq.requestFocus() }.isSuccess) onClose() },
                                 onArchive = { e -> onArchive(ch, e) },
-                                onPick = { val p = onPickIn; if (p != null) p(ch, shown) else onPick(ch) }
+                                onPreview = { val p = onPreviewIn; if (p != null) p(ch, shown) else onPreview(ch) },
+                                onPick = { onPick(ch) }
                             )
                         }
                     }
@@ -499,7 +514,7 @@ private fun guideOkAction(e: EpgEntry?, ch: Item?, nowSec: Long): String {
 private fun GuideRow(
     ch: Item, current: Boolean, winStart: Long, viewMin: Int, dpm: Float, nowSec: Long, rowH: Dp, hidePast: Boolean,
     cellReq: FocusRequester, onInfo: (EpgEntry?) -> Unit, onShift: (EpgEntry) -> Unit,
-    onBlock: (Boolean, FocusRequester) -> Unit, onClose: () -> Unit, onArchive: (EpgEntry) -> Unit, onPick: () -> Unit
+    onBlock: (Boolean, FocusRequester) -> Unit, onClose: () -> Unit, onArchive: (EpgEntry) -> Unit, onPreview: () -> Unit, onPick: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
@@ -511,6 +526,7 @@ private fun GuideRow(
         cleanEpg(raw.orEmpty()).let { l -> if (hidePast) l.filter { it.end > nowSec || CatchupLogic.canPlay(cu, it.start, it.end, nowSec) } else l }
     }
     val blockReqs = remember(entries) { HashMap<Long, FocusRequester>() }
+    var lastOkAt by remember(ch.id) { mutableLongStateOf(0L) }
     val from = winStart - 120 * 60L
     val to = winStart + (viewMin + 120) * 60L
     Row(Modifier.height(rowH).padding(vertical = 3.dp)) {
@@ -530,9 +546,17 @@ private fun GuideRow(
                     }
                 }
                 .onPreviewKeyEvent { ev ->
-                    if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onClose(); true } else false
+                    if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onClose(); true }
+                    else if (ev.type == KeyEventType.KeyDown && (ev.key == Key.Enter || ev.key == Key.NumPadEnter || ev.key == Key.DirectionCenter)) {
+                        val now = System.currentTimeMillis()
+                        if (now - lastOkAt in 1..450L) { lastOkAt = 0L; onPick() }
+                        else { lastOkAt = now; onPreview() }
+                        true
+                    } else false
                 }
-                .clickable(onClick = onPick)
+                .pointerInput(ch.id, current) {
+                    detectTapGestures(onTap = { onPreview() }, onDoubleTap = { onPick() })
+                }
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
