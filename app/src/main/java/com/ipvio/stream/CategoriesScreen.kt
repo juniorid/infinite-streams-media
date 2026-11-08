@@ -277,7 +277,6 @@ private fun CatListRow(
             .background(if (f) DS.Overlay4 else if (selected) DS.Overlay2 else Color.Transparent)
             .border(DS.Border, if (f) Accent2 else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
-            .focusable()
             .onPreviewKeyEvent { k ->
                 if (k.type == KeyEventType.KeyDown && k.key == Key.DirectionRight && k.nativeKeyEvent.repeatCount == 0) { onRight(); true } else false
             }
@@ -326,7 +325,6 @@ private fun CatTile(name: String, items: List<Item>, modifier: Modifier, onClick
             .border(DS.FocusBorder, if (f) Accent2 else DS.Overlay1, shape)
             .onFocusChanged { f = it.isFocused }
             .clickable(onClick = onClick)
-            .focusable()
     ) {
         if (backdrop != null) AsyncImage(backdrop, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, alpha = 0.5f)
         Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Surf.copy(alpha = .96f), Surf.copy(alpha = .55f), Color.Transparent))))
