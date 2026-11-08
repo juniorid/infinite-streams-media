@@ -26,32 +26,32 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun LiveBufferSection(ctx: Context) {
     LiveSettings.init(ctx)
-    SectionTitle("Zurückspulen und Aufnehmen")
+    SectionTitle("DVR / Timeshift")
     ToggleRow(
-        "DVR / Timeshift aktivieren",
-        "Speichert Live-TV und Multi-View-Streams lokal auf dem Gerät. Damit kannst du pausieren und zurückspringen, auch wenn dein Anbieter kein Catch-up anbietet. Funktioniert mit kompatiblen fortlaufenden Streams; HLS-Playlists werden nicht unterstützt.",
+        "Enable DVR / Timeshift",
+        "Automatically buffers Live TV and Multi-View streams on this device so you can pause and rewind without provider catch-up. Works with supported continuous streams; HLS playlists are not supported.",
         LiveSettings.timeshift
     ) { LiveSettings.setTimeshift(ctx, it) }
     val mbs = LiveSettings.BUFFER_MB
     val mbLabels = mbs.map { if (it >= 1024) "${it / 1024} GB" else "$it MB" }
-    SelectRow("Puffergröße", mbLabels[mbs.indexOf(LiveSettings.bufferMb).coerceAtLeast(0)], mbLabels, mbs.indexOf(LiveSettings.bufferMb).coerceAtLeast(0)) {
+    SelectRow("Buffer size", mbLabels[mbs.indexOf(LiveSettings.bufferMb).coerceAtLeast(0)], mbLabels, mbs.indexOf(LiveSettings.bufferMb).coerceAtLeast(0)) {
         LiveSettings.setBufferMb(ctx, mbs[it])
     }
     val steps = LiveSettings.SEEK_STEPS
-    SelectRow("Timeshift-Sprungweite", "${LiveSettings.seekStepSeconds} Sekunden", steps.map { "$it Sekunden" }, steps.indexOf(LiveSettings.seekStepSeconds).coerceAtLeast(0)) {
+    SelectRow("Timeshift seek interval", "${LiveSettings.seekStepSeconds} seconds", steps.map { "$it seconds" }, steps.indexOf(LiveSettings.seekStepSeconds).coerceAtLeast(0)) {
         LiveSettings.setSeekStep(ctx, steps[it])
     }
-    Hint("Ungefähr: 512 MB reichen für 10–20 Minuten in HD. Der Puffer wird beim Schließen des Players gelöscht.")
+    Hint("Approximate: 512 MB stores 10–20 minutes of HD video. The buffer is cleared when you leave the player.")
     val dirs = remember { Recorder.dirs(ctx) }
     val labels = dirs.mapIndexed { i, f -> Recorder.dirLabel(ctx, i, f) }
-    SelectRow("Speicherort für Aufnahmen", labels.getOrElse(LiveSettings.recDir) { labels.first() }, labels, LiveSettings.recDir.coerceIn(0, labels.lastIndex)) {
+    SelectRow("Recording location", labels.getOrElse(LiveSettings.recDir) { labels.first() }, labels, LiveSettings.recDir.coerceIn(0, labels.lastIndex)) {
         LiveSettings.setRecDir(ctx, it)
     }
     val pads = listOf(0, 2, 3, 5, 10, 15)
-    SelectRow("Nachlauf nach Sendungsende", "${LiveSettings.recPad} min", pads.map { "$it min" }, pads.indexOf(LiveSettings.recPad).coerceAtLeast(0)) {
+    SelectRow("Recording padding after program ends", "${LiveSettings.recPad} min", pads.map { "$it min" }, pads.indexOf(LiveSettings.recPad).coerceAtLeast(0)) {
         LiveSettings.setRecPad(ctx, pads[it])
     }
-    Hint("Aufnehmen: im Player bei einem Sender auf den roten Knopf. Die laufende Sendung wird bis zu ihrem Ende laut TV-Guide aufgenommen, beginnt sie schon im Puffer, auch von ihrem Anfang an. Schaust du währenddessen einen anderen Sender, braucht das eine zweite Verbindung zu deinem Anbieter. Aufnahmen liegen im App-Ordner und werden beim Deinstallieren der App gelöscht.")
+    Hint("To record, press the red button while watching a channel. The program records until its scheduled end in the TV guide; if it is already in the buffer, recording can include the beginning. Watching another channel at the same time requires a second provider connection. Recordings are stored in the app folder and are deleted if you uninstall the app.")
     RecordingsList(ctx)
 }
 
@@ -61,7 +61,7 @@ private fun RecordingsList(ctx: Context) {
     val running = Recorder.active.size
     val list = remember(tick, running) { Recorder.list(ctx) }
     SectionTitle("Aufnahmen (${list.size})")
-    if (list.isEmpty()) { Hint("Noch keine Aufnahmen."); return }
+    if (list.isEmpty()) { Hint("No recordings yet."); return }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (f in list.take(40)) {
             Row(
@@ -76,10 +76,10 @@ private fun RecordingsList(ctx: Context) {
                         color = Muted, fontSize = 13.sp, maxLines = 1, raw = true
                     )
                 }
-                if (f.running) SmallPill("Stoppen") { Recorder.active.firstOrNull { it.file == f.file }?.let { Recorder.stop(ctx, it) }; tick++ }
-                SmallPill("Löschen") { Recorder.delete(ctx, f); tick++ }
+                if (f.running) SmallPill("Stop") { Recorder.active.firstOrNull { it.file == f.file }?.let { Recorder.stop(ctx, it) }; tick++ }
+                SmallPill("Delete") { Recorder.delete(ctx, f); tick++ }
             }
         }
     }
-    Hint("Abspielen: Live TV > „Aufnahmen“.")
+    Hint("Playback: Live TV > “Recordings”.")
 }
