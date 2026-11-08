@@ -21,8 +21,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -464,12 +462,20 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             Text(multiViewCategory ?: multiViewCategories.firstOrNull() ?: "No categories", color = Color.White, modifier = Modifier.weight(1f))
                             Text("▾", color = Accent2, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
-                        DropdownMenu(expanded = multiViewCategoryMenu, onDismissRequest = { multiViewCategoryMenu = false }) {
-                            multiViewCategories.forEach { category ->
-                                DropdownMenuItem(
-                                    text = { Text(category) },
-                                    onClick = { multiViewCategory = category; multiViewCategoryMenu = false }
-                                )
+                        if (multiViewCategoryMenu) {
+                            LazyColumn(
+                                Modifier.fillMaxWidth().height(dpx(180))
+                                    .clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay3)
+                            ) {
+                                items(multiViewCategories, key = { "multi-category-option-" + it }) { category ->
+                                    Text(
+                                        category, color = Color.White,
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            multiViewCategory = category
+                                            multiViewCategoryMenu = false
+                                        }.padding(horizontal = dpx(14), vertical = dpx(11))
+                                    )
+                                }
                             }
                         }
                     }
