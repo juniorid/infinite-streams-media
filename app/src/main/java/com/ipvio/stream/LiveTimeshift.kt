@@ -40,7 +40,9 @@ object LiveSettings {
         if (inited) return
         inited = true
         val p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        timeshift = p.getBoolean("ts", false)
+        val tsDefaultsVersion = p.getInt("ts_defaults_version", 0)
+        timeshift = if (tsDefaultsVersion < 1) true else p.getBoolean("ts", true)
+        if (tsDefaultsVersion < 1) p.edit().putBoolean("ts", true).putInt("ts_defaults_version", 1).apply()
         bufferMb = p.getInt("mb", 512).takeIf { it in BUFFER_MB } ?: 512
         seekStepSeconds = p.getInt("seek_step", 30).takeIf { it in SEEK_STEPS } ?: 30
         recDir = p.getInt("dir", 0).coerceAtLeast(0)
