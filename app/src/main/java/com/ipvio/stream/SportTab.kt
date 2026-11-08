@@ -97,14 +97,28 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 })
     }
     fun channelsForGame(game: SportLogic.ScoreGame): List<Item> {
-        val ranked = channels.map { it to SportLogic.scoreChannelRank(game, it) }
+        // Sport/league/team matches first; FOX One and ESPN are secondary fallbacks.
+        val sportMatches = live.map { it to SportLogic.scoreChannelRank(game, it) }
             .filter { it.second >= 5 }.sortedByDescending { it.second }.map { it.first }
-        val generic = liveChannelsForSports(live)
-        return (ranked + generic).distinctBy { it.id }
+        val generalFallbacks = liveChannelsForSports(live).filter { channel ->
+            channel.title.contains("FOX One", true) || channel.group.contains("FOX One", true) ||
+                channel.title.contains("ESPN", true) || channel.group.contains("ESPN", true)
+        }
+        return (sportMatches + generalFallbacks).distinctBy { it.id }
     }
-    fun playScoreGame(game: SportLogic.ScoreGame, channel: Item) {
-        Toast.makeText(context, "Opening " + channel.title + " — provider availability may vary.", Toast.LENGTH_LONG).show()
-        onPlay(channel, channelsForGame(game))
+    fun playScoreGame(game: SportLogic.ScoreGame) {
+        val choices = channelsForGame(game)
+        val channel = choices.firstOrNull()
+        if (channel == null) {
+            Toast.makeText(context, "No matching sports channel found for " + game.league + ".", Toast.LENGTH_LONG).show()
+            return
+        }
+        Toast.makeText(context, "Opening " + channel.title + " — hold the game for channel choices.", Toast.LENGTH_LONG).show()
+        onPlay(channel, choices)
+    }
+    fun chooseScoreChannel(game: SportLogic.ScoreGame) {
+        if (channelsForGame(game).isEmpty()) Toast.makeText(context, "No matching sports channels found.", Toast.LENGTH_LONG).show()
+        else channelPickerGame = game
     }
     // Runde 22: Filter nach Zeitfenster (3 Std. / heute / morgen) und Sportart; die Chips zeigen nur Sportarten mit Treffern
     var win by remember { mutableIntStateOf(0) }
@@ -163,7 +177,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Row(Modifier.fillMaxWidth().height(dpx(214)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
                         Column(Modifier.weight(1.05f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
                             .background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35), Color(0xFF29204A))))
-                            .clickable { channelPickerGame = featured }.padding(dpx(18)),
+                            .clickable { playScoreGame(featured) }.padding(dpx(18)),
                             verticalArrangement = Arrangement.SpaceBetween) {
                             Text(if (featured.state.equals("in", true)) "● LIVE NOW" else "FEATURED GAME", color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                             Column(verticalArrangement = Arrangement.spacedBy(dpx(9))) {
@@ -206,7 +220,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     if (visibleScoreGames.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game) { channelPickerGame = game } }
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
                         }
                     } else {
                         Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
@@ -418,13 +432,13 @@ private fun SportChannelTile(c: Item, modifier: Modifier, onClick: () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit) {
+private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLongClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.RadiusM)
     Column(
         Modifier.width(dpx(300)).clip(shape)
             .background(Color(0x1AFFFFFF))
             .border(1.dp, Color(0x1AFFFFFF), shape)
-            .combinedClickable(onClick = onClick, onLongClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(10))
     ) {
