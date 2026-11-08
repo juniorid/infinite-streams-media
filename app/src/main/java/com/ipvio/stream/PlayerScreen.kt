@@ -268,7 +268,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
 
     val curItem = remember(cur.itemId, liveAll, zapSrc) { liveAll.firstOrNull { it.id == cur.itemId } ?: zapSrc.firstOrNull { it.id == cur.itemId } }
     val curIdx = remember(cur.itemId, zapSrc) { zapSrc.indexOfFirst { it.id == cur.itemId } }
-    val step = AppSettings.seekStep * 1000L
+    val step = (if (cur.live) LiveSettings.seekStepSeconds else AppSettings.seekStep) * 1000L
     val firstFocus = if (cur.live) liveFirst else playBtn
 
     // Serien: Folgenliste für Vorherige/Nächste Folge und das Folgen-Menü
@@ -1336,8 +1336,8 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             }
                             // Live-Puffer: 30 s zurück (Spultasten der Fernbedienung springen um die Sprungweite)
                             if (LiveTimeshift.active) {
-                                PRoundButton(label = "30 s zurück", onLabel = setLabel, onClick = {
-                                    LiveTimeshift.seekBy(player, -30_000L); flash = Flash(PIcon.Replay, "−30 s")
+                                PRoundButton(label = "${LiveSettings.seekStepSeconds} s zurück", onLabel = setLabel, onClick = {
+                                    LiveTimeshift.seekBy(player, -LiveSettings.seekStepSeconds * 1000L); flash = Flash(PIcon.Replay, "−${LiveSettings.seekStepSeconds} s")
                                 }) { PlayerIcon(PIcon.Replay, it) }
                             }
                             // Aufnahme der laufenden Sendung (aus dem Puffer, ohne zweite Verbindung)
