@@ -83,7 +83,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
     val enabledLeagues = remember(context) {
         mutableStateOf(context.getSharedPreferences("sports_hub", 0)
-            .getStringSet("enabled_leagues", scoreLeagues.toSet())?.toSet() ?: scoreLeagues.toSet())
+            .getStringSet("enabled_leagues", scoreLeagues.toMutableSet())?.toSet() ?: scoreLeagues.toSet())
     }
     val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
     var manageLeagues by remember { mutableStateOf(false) }
@@ -386,12 +386,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         Text("Select all", color = Accent2, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clickable {
                                 enabledLeagues.value = scoreLeagues.toSet()
-                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toSet()).apply()
+                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toMutableSet()).apply()
                             }.padding(vertical = dpx(8)))
                         Text("Clear all", color = Accent2, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clickable {
                                 enabledLeagues.value = emptySet()
-                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", emptySet()).apply()
+                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", mutableSetOf<String>()).apply()
                                 selectedScoreLeague = "All"
                             }.padding(vertical = dpx(8)))
                     }
@@ -404,7 +404,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                         if (!add(league)) remove(league)
                                     }
                                     enabledLeagues.value = next
-                                    context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", next).apply()
+                                    context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", next.toMutableSet()).apply()
                                     if (!next.contains(selectedScoreLeague)) selectedScoreLeague = "All"
                                     if (!next.contains(selectedStandingsLeague)) selectedStandingsLeague = next.firstOrNull() ?: "NFL"
                                     if (!next.contains(selectedFollowLeague)) selectedFollowLeague = next.firstOrNull() ?: "NFL"
