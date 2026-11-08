@@ -97,6 +97,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var multiViewChannels by remember { mutableStateOf<List<Item>>(emptyList()) }
     var showMultiViewPicker by remember { mutableStateOf(false) }
     var showMultiViewFullscreen by remember { mutableStateOf(false) }
+    var selectedMultiViewChannelId by remember { mutableStateOf<String?>(null) }
     var multiViewCategory by remember { mutableStateOf<String?>(null) }
     val multiViewCategories = remember(live) { live.map { it.group.ifBlank { "Other" } }.distinct().sorted() }
     val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
@@ -414,12 +415,14 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                         rowChannels.forEachIndexed { colIndex, channel ->
                                             val index = rowIndex * columns + colIndex
                                             Box(Modifier.width(cellWidth).height(cellHeight).clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF101827))) {
-                                                SecondStream(channel, split = true, audioOn = index == 0, cropToFill = false, modifier = Modifier.fillMaxSize())
+                                                val selected = selectedMultiViewChannelId == channel.id || (selectedMultiViewChannelId == null && index == 0)
+                                                SecondStream(channel, split = true, audioOn = selected, cropToFill = false, selected = selected, onSelect = { selectedMultiViewChannelId = channel.id }, modifier = Modifier.fillMaxSize())
                                                 Text(channel.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                                     modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(4.dp)).background(Color(0x99000000)).padding(horizontal = 7.dp, vertical = 4.dp))
                                                 Text("×", color = Color.White, fontSize = 20.sp,
                                                     modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).clip(RoundedCornerShape(50)).background(Color(0x99000000)).clickable {
                                                         multiViewChannels = multiViewChannels.filterIndexed { i, _ -> i != index }
+                                                        if (selectedMultiViewChannelId == channel.id) selectedMultiViewChannelId = multiViewChannels.firstOrNull { it.id != channel.id }?.id
                                                     }.padding(horizontal = 8.dp, vertical = 2.dp))
                                             }
                                         }
@@ -460,6 +463,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         items(availableChannels, key = { "multi-pick-" + it.id }) { channel ->
                             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable {
                                 multiViewChannels = (multiViewChannels + channel).take(4)
+                                if (selectedMultiViewChannelId == null) selectedMultiViewChannelId = channel.id
                                 showMultiViewPicker = false
                             }.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
                                 Text(channel.title, color = Color.White, modifier = Modifier.weight(1f))
