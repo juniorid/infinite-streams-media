@@ -303,7 +303,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             Dialog(onDismissRequest = { channelPickerGame = null }) {
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL))
-                        .background(DS.Panel).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(DS.RadiusL))
+                        .background(DS.Overlay2).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(DS.RadiusL))
                         .padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(12))
                 ) {
