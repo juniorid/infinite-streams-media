@@ -130,51 +130,64 @@ object SportLogic {
     )
 
     fun fetchScoreboards(): List<ScoreGame> {
-        val out = ArrayList<ScoreGame>()
-        for (feed in SCORE_FEEDS) {
-            try {
-                val connection = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/scoreboard")
-                    .openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 5000
-                connection.readTimeout = 5000
-                connection.setRequestProperty("User-Agent", "InfiniteStreamsMedia/1.0")
-                try {
-                    if (connection.responseCode !in 200..299) continue
-                    val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-                    val events = root.optJSONArray("events") ?: continue
-                    for (i in 0 until events.length()) {
-                        val event = events.optJSONObject(i) ?: continue
-                        val comp = event.optJSONArray("competitions")?.optJSONObject(0) ?: continue
-                        val competitors = comp.optJSONArray("competitors") ?: continue
-                        var home = org.json.JSONObject()
-                        var away = org.json.JSONObject()
-                        for (j in 0 until competitors.length()) {
-                            val team = competitors.optJSONObject(j) ?: continue
-                            if (team.optString("homeAway") == "home") home = team else away = team
+        // Fetch leagues concurrently. Sequential 5-second timeouts meant later feeds (often NHL/soccer)
+        // could succeed while NFL/NBA/MLB were never reached in time.
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(6)
+        return try {
+            val tasks = SCORE_FEEDS.map { feed ->
+                java.util.concurrent.Callable {
+                    val games = ArrayList<ScoreGame>()
+                    var connection: java.net.HttpURLConnection? = null
+                    try {
+                        val url = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/scoreboard?limit=100")
+                        connection = url.openConnection() as java.net.HttpURLConnection
+                        connection.connectTimeout = 7000
+                        connection.readTimeout = 7000
+                        connection.setRequestProperty("User-Agent", "Mozilla/5.0 InfiniteStreamsMedia")
+                        connection.setRequestProperty("Accept", "application/json")
+                        if (connection.responseCode !in 200..299) return@Callable games
+                        val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                        val events = root.optJSONArray("events") ?: return@Callable games
+                        for (i in 0 until events.length()) {
+                            val event = events.optJSONObject(i) ?: continue
+                            val comp = event.optJSONArray("competitions")?.optJSONObject(0) ?: continue
+                            val competitors = comp.optJSONArray("competitors") ?: continue
+                            var home = org.json.JSONObject()
+                            var away = org.json.JSONObject()
+                            for (j in 0 until competitors.length()) {
+                                val team = competitors.optJSONObject(j) ?: continue
+                                if (team.optString("homeAway") == "home") home = team else away = team
+                            }
+                            val homeTeam = home.optJSONObject("team") ?: org.json.JSONObject()
+                            val awayTeam = away.optJSONObject("team") ?: org.json.JSONObject()
+                            val statusObj = event.optJSONObject("status")?.optJSONObject("type") ?: org.json.JSONObject()
+                            val status = statusObj.optString("description", statusObj.optString("name", "Scheduled"))
+                            games += ScoreGame(
+                                id = event.optString("id"),
+                                league = feed.label,
+                                name = event.optString("name"),
+                                state = statusObj.optString("state"),
+                                detail = statusObj.optString("shortDetail", event.optString("date")),
+                                home = homeTeam.optString("displayName", "Home"),
+                                away = awayTeam.optString("displayName", "Away"),
+                                homeScore = home.optString("score", "—"),
+                                awayScore = away.optString("score", "—"),
+                                homeLogo = homeTeam.optString("logo"),
+                                awayLogo = awayTeam.optString("logo"),
+                                status = status
+                            )
                         }
-                        val homeTeam = home.optJSONObject("team") ?: org.json.JSONObject()
-                        val awayTeam = away.optJSONObject("team") ?: org.json.JSONObject()
-                        val statusObj = event.optJSONObject("status")?.optJSONObject("type") ?: org.json.JSONObject()
-                        val status = statusObj.optString("description", statusObj.optString("name", "Scheduled"))
-                        out += ScoreGame(
-                            id = event.optString("id"),
-                            league = feed.label,
-                            name = event.optString("name"),
-                            state = statusObj.optString("state"),
-                            detail = statusObj.optString("shortDetail", event.optString("date")),
-                            home = homeTeam.optString("displayName", "Home"),
-                            away = awayTeam.optString("displayName", "Away"),
-                            homeScore = home.optString("score", "—"),
-                            awayScore = away.optString("score", "—"),
-                            homeLogo = homeTeam.optString("logo"),
-                            awayLogo = awayTeam.optString("logo"),
-                            status = status
-                        )
+                    } catch (_: Exception) {
+                        // One unavailable ESPN league must not prevent other leagues from loading.
+                    } finally {
+                        connection?.disconnect()
                     }
-                } finally { connection.disconnect() }
-            } catch (_: Exception) { /* Keep other leagues available if one feed is unavailable. */ }
+                    games
+                }
+            }
+            pool.invokeAll(tasks).flatMap { task -> runCatching { task.get() }.getOrDefault(emptyList()) }
+        } finally {
+            pool.shutdownNow()
         }
-        return out
     }
-
 }
