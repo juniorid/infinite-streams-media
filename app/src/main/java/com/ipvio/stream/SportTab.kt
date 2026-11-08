@@ -268,7 +268,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
                     if (followed.isEmpty()) Text("Choose teams above to follow them. Their games will appear here.", color = Muted)
                     else LazyColumn(verticalArrangement = Arrangement.spacedBy(dpx(10)), modifier = Modifier.height(dpx(360))) {
-                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game) { channelPickerGame = game } }
+                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
                     }
                 }
             }
