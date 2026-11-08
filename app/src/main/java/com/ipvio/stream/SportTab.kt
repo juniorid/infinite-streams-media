@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
@@ -67,6 +68,9 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val allNow = slots?.first.orEmpty()
     val allSoon = slots?.second.orEmpty()
+    val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), tick) {
+        value = withContext(IO) { SportLogic.fetchScoreboards() }
+    }
     // Runde 22: Filter nach Zeitfenster (3 Std. / heute / morgen) und Sportart; die Chips zeigen nur Sportarten mit Treffern
     var win by remember { mutableIntStateOf(0) }
     var sport by remember { mutableIntStateOf(-1) }
@@ -103,6 +107,23 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Text("${channels.size} Sender", color = Muted, fontSize = 16.sp)
                     if (slots == null) Text("Lade …", color = Muted, fontSize = 16.sp)
                     else if (Xmltv.channelCount == 0) Text("TV-Guide wird noch geladen", color = Muted, fontSize = 15.sp)
+                }
+            }
+            item(key = "scores") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Live scores & games", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                        Text("ESPN", color = Muted, fontSize = 12.sp)
+                    }
+                    if (scoreGames.isEmpty()) {
+                        Text("No scoreboard data available right now", color = Muted, fontSize = 14.sp)
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(6), horizontal = dpx(4))) {
+                            items(scoreGames, key = { it.league + "|" + it.id }) { game ->
+                                ScoreGameCard(game)
+                            }
+                        }
+                    }
                 }
             }
             if (slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "filters") {
@@ -214,5 +235,46 @@ private fun SportChannelTile(c: Item, modifier: Modifier, onClick: () -> Unit) {
             else Text(raw = true, text = c.title.take(3).uppercase(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
         Text(raw = true, text = c.title, color = Color.White, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+
+@Composable
+private fun ScoreGameCard(game: SportLogic.ScoreGame) {
+    val shape = RoundedCornerShape(DS.RadiusM)
+    Column(
+        Modifier.width(dpx(300)).clip(shape)
+            .background(Color(0x1AFFFFFF))
+            .border(1.dp, Color(0x1AFFFFFF), shape)
+            .padding(dpx(14)),
+        verticalArrangement = Arrangement.spacedBy(dpx(10))
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(game.league, color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(
+                when (game.state.lowercase()) {
+                    "in" -> "LIVE"
+                    "post" -> "FINAL"
+                    else -> game.detail
+                },
+                color = if (game.state.equals("in", true)) PT.Live else Muted,
+                fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1
+            )
+        }
+        ScoreTeamRow(game.away, game.awayLogo, game.awayScore)
+        ScoreTeamRow(game.home, game.homeLogo, game.homeScore)
+        Text(game.status, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun ScoreTeamRow(name: String, logo: String, score: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(dpx(38)).clip(RoundedCornerShape(DS.RadiusXs)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
+            if (logo.isNotBlank()) AsyncImage(logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
+            else Text(name.take(2).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+        Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(score, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
     }
 }
