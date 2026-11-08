@@ -2,6 +2,7 @@ package com.ipvio.stream
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.aspectRatio
@@ -46,7 +47,7 @@ import androidx.media3.ui.PlayerView
  * Hinweis: Viele Anbieter erlauben nur eine Verbindung je Zugang – dann bricht der zweite Stream ab und die App meldet es.
  */
 @Composable
-internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFill: Boolean = false, modifier: Modifier) {
+internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFill: Boolean = false, selected: Boolean = false, onSelect: () -> Unit = {}, modifier: Modifier) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     val p = remember {
@@ -78,8 +79,10 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
         if (!openStream(p, item.url, C.TIME_UNSET)) failed = true
     }
     LaunchedEffect(audioOn) { p.volume = if (audioOn) 1f else 0f }
+    var isPlaying by remember { mutableStateOf(true) }
+    LaunchedEffect(p) { isPlaying = p.isPlaying }
     val shape = RoundedCornerShape(if (split) 0.dp else 10.dp)
-    Box(modifier.clip(shape).background(Color.Black).border(if (split) 0.dp else 2.dp, if (audioOn) Accent2 else Color(0x66FFFFFF), shape)) {
+    Box(modifier.clip(shape).background(Color.Black).border(if (selected) 3.dp else if (split) 0.dp else 2.dp, if (selected) Accent2 else Color(0x66FFFFFF), shape).clickable { onSelect() }) {
         AndroidView(
             factory = { c ->
                 PlayerView(c).apply {
@@ -96,6 +99,15 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(raw = true, text = (if (audioOn) "♪ " else "") + item.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (selected) {
+            Row(Modifier.align(Alignment.BottomCenter).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xCC000000)).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(if (isPlaying) "Ⅱ PAUSE" else "▶ PLAY", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.clickable { isPlaying = !isPlaying; p.playWhenReady = isPlaying }.padding(horizontal = 8.dp, vertical = 5.dp))
+                val canTimeshift = p.isCurrentMediaItemSeekable && p.duration > 0
+                Text("−30s", color = if (canTimeshift) Color.White else Color.Gray, fontSize = 12.sp, modifier = Modifier.clickable(enabled = canTimeshift) { p.seekTo((p.currentPosition - 30_000L).coerceAtLeast(0L)) }.padding(horizontal = 8.dp, vertical = 5.dp))
+                Text("+30s", color = if (canTimeshift) Color.White else Color.Gray, fontSize = 12.sp, modifier = Modifier.clickable(enabled = canTimeshift) { p.seekTo((p.currentPosition + 30_000L).coerceAtMost(p.duration)) }.padding(horizontal = 8.dp, vertical = 5.dp))
+                if (!canTimeshift) Text("No DVR", color = Color.LightGray, fontSize = 10.sp)
+            }
         }
         if (failed) Box(Modifier.fillMaxSize().background(Color(0xAA000000)), contentAlignment = Alignment.Center) {
             Text("Zweiter Stream nicht abspielbar", color = Color.White, fontSize = 14.sp)
