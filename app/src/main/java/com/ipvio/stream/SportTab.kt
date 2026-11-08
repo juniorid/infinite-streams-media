@@ -207,10 +207,10 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             verticalArrangement = Arrangement.SpaceEvenly) {
                             Text(featured.league.uppercase(), color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             Text(featured.name, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            ScoreTeamRow(featured.away, featured.awayLogo, featured.awayScore)
-                            ScoreTeamRow(featured.home, featured.homeLogo, featured.homeScore)
+                            ScoreTeamRow(featured.away, featured.awayLogo, featured.awayScore, featured.awayRecord)
+                            ScoreTeamRow(featured.home, featured.homeLogo, featured.homeScore, featured.homeRecord)
                             Text(listOf(featured.status, featured.detail, if (featured.period.isNotBlank()) "Period ${featured.period}" else "", if (featured.clock.isNotBlank()) featured.clock else "").filter { it.isNotBlank() }.distinct().joinToString(" · "), color = if (featured.state.equals("in", true)) PT.Live else Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (featured.periodScores.isNotBlank()) Text(featured.periodScores, color = Color.White, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            if (featured.awayPeriodScores.isNotEmpty() || featured.homePeriodScores.isNotEmpty()) ScoreQuarterTable(featured)
                             if (featured.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                                 Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                                 Text(featured.lastPlay, color = Color.White, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -542,13 +542,36 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
 }
 
 @Composable
-private fun ScoreTeamRow(name: String, logo: String, score: String) {
+@Composable
+private fun ScoreQuarterTable(game: SportLogic.ScoreGame) {
+    val count = maxOf(game.awayPeriodScores.size, game.homePeriodScores.size)
+    val labels = (1..count).map { "Q$it" } + "T"
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("PER", color = Muted, fontSize = 10.sp, modifier = Modifier.width(34.dp))
+        labels.forEachIndexed { index, label ->
+            Text(label, color = if (index == labels.lastIndex) Accent2 else Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        }
+    }
+    listOf(game.awayPeriodScores to game.awayScore, game.homePeriodScores to game.homeScore).forEachIndexed { teamIndex, pair ->
+        val periods = pair.first
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(if (teamIndex == 0) "AWY" else "HME", color = Color.White, fontSize = 10.sp, modifier = Modifier.width(34.dp))
+            repeat(count) { index -> Text(periods.getOrNull(index) ?: "—", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f)) }
+            Text(pair.second, color = Accent2, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+private fun ScoreTeamRow(name: String, logo: String, score: String, record: String = "") {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(dpx(38)).clip(RoundedCornerShape(DS.RadiusXs)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
             if (logo.isNotBlank()) AsyncImage(logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
             else Text(name.take(2).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-        Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (record.isNotBlank()) Text(record, color = Muted, fontSize = 10.sp, maxLines = 1)
+        }
         Text(score, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
     }
 }
