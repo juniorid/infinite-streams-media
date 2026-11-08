@@ -230,7 +230,6 @@ object SportLogic {
                     for (i in 0 until children.length()) children.optJSONObject(i)?.let { walk(it, label) }
                 }
             }
-            root.optJSONObject("standings")?.let { addEntries(it, root.optString("name")) }
             walk(root)
             StandingsTable(league, rows, groups)
         } catch (_: Exception) {
