@@ -85,7 +85,7 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
                 PlayerView(c).apply {
                     useController = false
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                    if (cropToFill) resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                    resizeMode = if (cropToFill) androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM else androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
                     this.player = p
                 }
             },
