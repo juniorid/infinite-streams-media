@@ -75,7 +75,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), tick) {
         value = withContext(IO) { SportLogic.fetchScoreboards() }
     }
-    val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC")
+    val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
     var selectedScoreLeague by remember { mutableStateOf("All") }
     val visibleScoreGames = if (selectedScoreLeague == "All") scoreGames else scoreGames.filter { it.league == selectedScoreLeague }
     fun playScoreGame(game: SportLogic.ScoreGame) {
@@ -133,8 +133,9 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         Text("Live scores & games", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
                         Text("ESPN", color = Muted, fontSize = 12.sp)
                     }
+                    Text("Choose a sport", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4), horizontal = dpx(4))) {
-                        item(key = "all-score-leagues") { FilterPill("All", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
+                        item(key = "all-score-leagues") { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
                         items(scoreLeagues, key = { "score-league-" + it }) { league ->
                             FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league }
                         }
