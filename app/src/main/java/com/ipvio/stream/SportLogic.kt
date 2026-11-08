@@ -154,6 +154,93 @@ object SportLogic {
 
     private data class ScoreFeed(val label: String, val path: String)
 
+    data class StandingRow(
+        val rank: String, val team: String, val record: String,
+        val summary: String, val logo: String, val group: String
+    )
+
+    data class StandingsTable(val league: String, val rows: List<StandingRow>, val groups: List<String>)
+
+    /** Fetch the selected league's current ESPN standings table. Unsupported sports return an empty table. */
+    fun fetchStandings(league: String): StandingsTable {
+        val feed = SCORE_FEEDS.firstOrNull { it.label == league }
+            ?: return StandingsTable(league, emptyList(), emptyList())
+        var connection: java.net.HttpURLConnection? = null
+        return try {
+            val url = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/standings")
+            connection = url.openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 7000
+            connection.readTimeout = 7000
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 InfiniteStreamsMedia")
+            connection.setRequestProperty("Accept", "application/json")
+            if (connection.responseCode !in 200..299) return StandingsTable(league, emptyList(), emptyList())
+            val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val rows = ArrayList<StandingRow>()
+            val groups = ArrayList<String>()
+            fun stat(entry: org.json.JSONObject, vararg names: String): String {
+                val stats = entry.optJSONArray("stats") ?: return ""
+                for (i in 0 until stats.length()) {
+                    val s = stats.optJSONObject(i) ?: continue
+                    val key = (s.optString("name") + " " + s.optString("abbreviation") + " " + s.optString("shortDisplayName")).lowercase()
+                    if (names.any { key.contains(it) }) {
+                        val value = s.optString("displayValue").ifBlank {
+                            val number = s.opt("value")
+                            if (number == null || number == org.json.JSONObject.NULL) "" else number.toString()
+                        }
+                        if (value.isNotBlank()) return value
+                    }
+                }
+                return ""
+            }
+            fun addEntries(standings: org.json.JSONObject, group: String) {
+                val entries = standings.optJSONArray("entries") ?: return
+                if (entries.length() == 0) return
+                if (group.isNotBlank() && group !in groups) groups.add(group)
+                for (i in 0 until entries.length()) {
+                    val entry = entries.optJSONObject(i) ?: continue
+                    val team = entry.optJSONObject("team") ?: continue
+                    val name = team.optString("displayName", team.optString("name", "Team"))
+                    val wins = stat(entry, "wins", "win")
+                    val losses = stat(entry, "losses", "loss")
+                    val ties = stat(entry, "ties", "tie")
+                    val record = when {
+                        wins.isNotBlank() && losses.isNotBlank() && ties.isNotBlank() && ties != "0" -> "$wins-$losses-$ties"
+                        wins.isNotBlank() && losses.isNotBlank() -> "$wins-$losses"
+                        else -> stat(entry, "overall record", "record").ifBlank { stat(entry, "games played", "gp") }
+                    }
+                    val rank = entry.optString("rank").ifBlank {
+                        stat(entry, "playoffseed", "playoff seed", "rank", "position").ifBlank { (i + 1).toString() }
+                    }
+                    val summaryParts = listOf(
+                        stat(entry, "winpercent", "win pct", "percentage").takeIf { it.isNotBlank() }?.let { "Win% $it" },
+                        stat(entry, "gamesbehind", "games behind").takeIf { it.isNotBlank() && it != "0" }?.let { "$it GB" },
+                        stat(entry, "pointsfor", "points for").takeIf { it.isNotBlank() }?.let { "PF $it" },
+                        stat(entry, "pointsagainst", "points against").takeIf { it.isNotBlank() }?.let { "PA $it" },
+                        stat(entry, "streak").takeIf { it.isNotBlank() }?.let { "Streak $it" }
+                    ).filterNotNull()
+                    val logo = team.optJSONArray("logos")?.optJSONObject(0)?.optString("href").orEmpty()
+                        .ifBlank { team.optString("logo") }
+                    rows.add(StandingRow(rank, name, record.ifBlank { "—" }, summaryParts.joinToString("  ·  "), logo, group))
+                }
+            }
+            fun walk(node: org.json.JSONObject, group: String = "") {
+                val label = node.optString("name").ifBlank { node.optString("abbreviation") }.ifBlank { group }
+                node.optJSONObject("standings")?.let { addEntries(it, label) }
+                node.optJSONArray("children")?.let { children ->
+                    for (i in 0 until children.length()) children.optJSONObject(i)?.let { walk(it, label) }
+                }
+            }
+            root.optJSONObject("standings")?.let { addEntries(it, root.optString("name")) }
+            walk(root)
+            StandingsTable(league, rows, groups)
+        } catch (_: Exception) {
+            StandingsTable(league, emptyList(), emptyList())
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+
     private val SCORE_FEEDS = listOf(
         ScoreFeed("NFL", "football/nfl"),
         ScoreFeed("College Football", "football/college-football"),
