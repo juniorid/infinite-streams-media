@@ -167,7 +167,7 @@ object SportLogic {
             ?: return StandingsTable(league, emptyList(), emptyList())
         var connection: java.net.HttpURLConnection? = null
         return try {
-            val url = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/standings")
+            val url = java.net.URL("https://site.api.espn.com/apis/v2/sports/${feed.path}/standings")
             connection = url.openConnection() as java.net.HttpURLConnection
             connection.connectTimeout = 7000
             connection.readTimeout = 7000
