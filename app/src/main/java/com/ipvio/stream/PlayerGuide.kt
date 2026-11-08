@@ -159,8 +159,11 @@ fun Guide(
     }
     val safeCatIdx = catIdx.coerceIn(0, (filteredCats.size - 1).coerceAtLeast(0))
     val categoryItems = filteredCats.getOrNull(safeCatIdx)?.items ?: emptyList()
-    val shown = remember(categoryItems, q) {
-        if (q.isEmpty()) categoryItems else categoryItems.filter { it.title.contains(q, ignoreCase = true) }
+    val activeCategoryMatches = q.isNotEmpty() &&
+        filteredCats.getOrNull(safeCatIdx)?.name?.contains(q, ignoreCase = true) == true
+    val shown = remember(categoryItems, q, activeCategoryMatches) {
+        if (q.isEmpty() || activeCategoryMatches) categoryItems
+        else categoryItems.filter { it.title.contains(q, ignoreCase = true) }
     }
     val catReq = remember { FocusRequester() }
     val idx = shown.indexOfFirst { it.id == curId }.coerceAtLeast(0)
@@ -355,7 +358,8 @@ fun Guide(
                                 // Links aus der Senderspalte: zu den Kategorien (früher: schließen)
                                 onClose = { if (!runCatching { catReq.requestFocus() }.isSuccess) onClose() },
                                 onArchive = { e -> onArchive(ch, e) },
-                                onPreview = { val p = onPreviewIn; if (p != null) p(ch, shown) else onPreview(ch) },
+                                // Keep the complete source playlist when previewing; "shown" may be search-filtered.
+                                onPreview = { val p = onPreviewIn; if (p != null) p(ch, list) else onPreview(ch) },
                                 onPick = { onPick(ch) }
                             )
                         }
@@ -557,6 +561,7 @@ private fun GuideRow(
                 .pointerInput(ch.id, current) {
                     detectTapGestures(onTap = { onPreview() }, onDoubleTap = { onPick() })
                 }
+                .focusable()
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
