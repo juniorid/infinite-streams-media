@@ -186,41 +186,9 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 val featured = visibleScoreGames.firstOrNull { it.id == selectedPreviewGameId }
                     ?: visibleScoreGames.firstOrNull { it.state.equals("in", true) }
                     ?: visibleScoreGames.firstOrNull()
-                if (featured != null) {
-                    val previewChannel = channelsForGame(featured).firstOrNull()
-                    Row(Modifier.fillMaxWidth().height(dpx(238)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
-                        Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM)).background(Color.Black)) {
-                            if (previewChannel != null) {
-                                SecondStream(previewChannel, split = false, audioOn = true, cropToFill = true, modifier = Modifier.fillMaxSize())
-                            } else {
-                                Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35)))), contentAlignment = Alignment.Center) {
-                                    Text("No matching stream found for this game", color = Color.White, fontSize = 14.sp)
-                                }
-                            }
-                            Text(if (featured.state.equals("in", true)) "● LIVE PREVIEW" else "GAME PREVIEW",
-                                color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.align(Alignment.TopStart).padding(dpx(10)).clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0x99000000)).padding(horizontal = dpx(9), vertical = dpx(5)))
-                        }
-                        Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
-                            .background(Color(0xCC17243D)).border(1.dp, Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM)).padding(dpx(18)),
-                            verticalArrangement = Arrangement.SpaceEvenly) {
-                            Text(featured.league.uppercase(), color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Text(featured.name, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            ScoreTeamRow(featured.away, featured.awayLogo, featured.awayScore, featured.awayRecord)
-                            ScoreTeamRow(featured.home, featured.homeLogo, featured.homeScore, featured.homeRecord)
-                            Text(listOf(featured.status, featured.detail, if (featured.period.isNotBlank()) "Period ${featured.period}" else "", if (featured.clock.isNotBlank()) featured.clock else "").filter { it.isNotBlank() }.distinct().joinToString(" · "), color = if (featured.state.equals("in", true)) PT.Live else Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (featured.awayPeriodScores.isNotEmpty() || featured.homePeriodScores.isNotEmpty()) ScoreQuarterTable(featured)
-                            if (featured.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
-                                Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
-                                Text(featured.lastPlay, color = Color.White, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                } else {
-                    Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
-                        Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
-                    }
+                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull())
+                else Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
+                    Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
                 }
             }
             if (hubSection == "Scores") item(key = "score-filters") {
@@ -286,41 +254,13 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2).clickable { manageFollows = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
                     }
                     val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
+                    val featuredFollowed = followed.firstOrNull { it.state.equals("in", true) } ?: followed.firstOrNull()
+                    if (featuredFollowed != null) FeaturedGamePanel(featuredFollowed, channelsForGame(featuredFollowed).firstOrNull())
                     if (favoriteTeams.value.isEmpty()) Text("No teams followed yet. Select Manage follows to choose a league and team.", color = Muted)
                     else if (followed.isEmpty()) Text("Your followed teams have no games listed right now.", color = Muted)
                     else LazyColumn(verticalArrangement = Arrangement.spacedBy(dpx(10)), modifier = Modifier.height(dpx(360))) {
-                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game, onClick = { selectedPreviewGameId = game.id; hubSection = "Scores" }, onLongClick = { chooseScoreChannel(game) }) }
+                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game, onClick = { selectedPreviewGameId = game.id }, onLongClick = { chooseScoreChannel(game) }) }
                     }
-                }
-            }
-            item(key = "manage-follows-dialog") {
-                if (manageFollows) {
-                Dialog(onDismissRequest = { manageFollows = false }) {
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2)
-                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(DS.RadiusL)).padding(dpx(18)),
-                        verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                        Text("Manage follows", color = Color.White, fontSize = spx(21), fontWeight = FontWeight.Bold)
-                        Text("Choose a league, then select the teams you want to follow.", color = Muted, fontSize = 13.sp)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                            items(scoreLeagues, key = { "follow-league-" + it }) { league ->
-                                FilterPill(league, selectedFollowLeague == league) { selectedFollowLeague = league }
-                            }
-                        }
-                        val leagueTeams = scoreGames.filter { it.league == selectedFollowLeague }.flatMap { listOf(it.home, it.away) }.filter { it.isNotBlank() }.distinct().sorted()
-                        if (leagueTeams.isEmpty()) Text("No teams are currently listed for this league. Try another league or refresh scores.", color = Muted)
-                        else LazyColumn(Modifier.height(dpx(300)), verticalArrangement = Arrangement.spacedBy(dpx(6))) {
-                            items(leagueTeams, key = { "follow-choice-" + it }) { team ->
-                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                    .clickable { toggleFavorite(team) }.padding(dpx(12)), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(if (favoriteTeams.value.contains(team)) "✓" else "○", color = if (favoriteTeams.value.contains(team)) Accent2 else Muted, fontSize = 18.sp)
-                                    Text(team, color = Color.White, modifier = Modifier.padding(start = dpx(10)).weight(1f))
-                                    if (favoriteTeams.value.contains(team)) Text("FOLLOWING", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                        Text("DONE", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { manageFollows = false }.padding(8.dp))
-                    }
-                }
                 }
             }
             if (hubSection == "Standings") item(key = "standings") {
@@ -542,6 +482,35 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
 }
 
 @Composable
+
+@Composable
+private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?) {
+    Row(Modifier.fillMaxWidth().height(dpx(310)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+        Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM)).background(Color.Black)) {
+            if (previewChannel != null) SecondStream(previewChannel, split = false, audioOn = true, cropToFill = false, modifier = Modifier.fillMaxSize())
+            else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35)))), contentAlignment = Alignment.Center) {
+                Text("No matching stream found for this game", color = Color.White, fontSize = 14.sp)
+            }
+            Text(if (game.state.equals("in", true)) "● LIVE PREVIEW" else "GAME PREVIEW", color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.align(Alignment.TopStart).padding(dpx(10)).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = dpx(9), vertical = dpx(5)))
+        }
+        Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
+            .background(Color(0xCC17243D)).border(1.dp, Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM)).padding(dpx(14)),
+            verticalArrangement = Arrangement.spacedBy(dpx(8))) {
+            Text(game.league.uppercase(), color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(game.name, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            ScoreTeamRow(game.away, game.awayLogo, game.awayScore, game.awayRecord)
+            ScoreTeamRow(game.home, game.homeLogo, game.homeScore, game.homeRecord)
+            Text(listOf(game.status, game.detail, if (game.period.isNotBlank()) "Period ${game.period}" else "", if (game.clock.isNotBlank()) game.clock else "").filter { it.isNotBlank() }.distinct().joinToString(" · "), color = if (game.state.equals("in", true)) PT.Live else Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (game.awayPeriodScores.isNotEmpty() || game.homePeriodScores.isNotEmpty()) ScoreQuarterTable(game)
+            if (game.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+                Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                Text(game.lastPlay, color = Color.White, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
 private fun ScoreQuarterTable(game: SportLogic.ScoreGame) {
     val count = maxOf(game.awayPeriodScores.size, game.homePeriodScores.size)
     val labels = (1..count).map { "Q$it" } + "T"
