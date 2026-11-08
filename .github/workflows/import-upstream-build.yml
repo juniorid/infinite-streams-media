@@ -1,19 +1,17 @@
-name: Import IPVIO source and build APK
+name: Build Infinite Streams Media APK
 
 on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  import-and-build:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Infinite Streams Media
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -24,26 +22,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Import upstream player source
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fL https://codeload.github.com/Emrodev/IPVIO-Stream/tar.gz/refs/heads/main -o /tmp/upstream.tar.gz
-          mkdir -p /tmp/upstream
-          tar -xzf /tmp/upstream.tar.gz --strip-components=1 -C /tmp/upstream
-          # Keep this repository's workflow directory: the GitHub App token cannot
-          # write workflow files unless it has the separate "workflows" permission.
-          rsync -a --delete --exclude='.git' --exclude='.github/***' /tmp/upstream/ ./
-          chmod +x ./gradlew
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git commit -m "Import IPVIO Stream source as Infinite Streams Media base"
-            git push
-          fi
-
-      # Run tests for visibility, but do not let an upstream test failure block APK packaging.
+      # Tests are reported for visibility, but upstream test failures do not block APK packaging.
       - name: Run unit tests (non-blocking)
         run: ./gradlew test
         continue-on-error: true
