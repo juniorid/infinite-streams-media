@@ -2,6 +2,11 @@ name: Build Infinite Streams Media APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/src/main/**'
+      - '.github/workflows/import-upstream-build.yml'
 
 permissions:
   contents: read
