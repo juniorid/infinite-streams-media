@@ -122,34 +122,79 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(dpx(26))
         ) {
             item(key = "head") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Sport", color = Color.White, fontSize = spx(34), fontWeight = FontWeight.ExtraBold)
-                    Text("${channels.size} Sender", color = Muted, fontSize = 16.sp)
-                    if (slots == null) Text("Lade …", color = Muted, fontSize = 16.sp)
-                    else if (Xmltv.channelCount == 0) Text("TV-Guide wird noch geladen", color = Muted, fontSize = 15.sp)
-                }
-            }
-            item(key = "scores") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Live scores & games", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                        Text("ESPN", color = Muted, fontSize = 12.sp)
-                    }
-                    Text("Choose a sport", color = Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4), horizontal = dpx(4))) {
-                        item(key = "all-score-leagues") { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
-                        items(scoreLeagues, key = { "score-league-" + it }) { league ->
-                            FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league }
-                        }
-                    }
-                    if (visibleScoreGames.isEmpty()) {
-                        Text(if (scoreGames.isEmpty()) "Scoreboards are temporarily unavailable. Select a league to browse." else "No games currently listed for " + selectedScoreLeague + ".", color = Muted, fontSize = 14.sp)
-                    } else {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(6), horizontal = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game ->
-                                ScoreGameCard(game) { playScoreGame(game) }
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(16))) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(22))) {
+                        listOf("Scores", "My teams", "Standings", "Channels", "Multi-View", "Map").forEachIndexed { index, label ->
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+                                Text(label, color = if (index == 0) Color.White else Muted, fontSize = spx(18), fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Medium)
+                                Box(Modifier.width(if (index == 0) dpx(64) else 0.dp).height(dpx(3)).clip(RoundedCornerShape(50)).background(if (index == 0) Accent1 else Color.Transparent))
                             }
                         }
+                        Spacer(Modifier.weight(1f))
+                        Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2).clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(9)))
+                        Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2).clickable { tick++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                        Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("${channels.size} sports channels", color = Muted, fontSize = 13.sp)
+                        if (slots == null) Text("• Updating", color = Muted, fontSize = 12.sp)
+                    }
+                }
+            }
+            item(key = "featured-score") {
+                val featured = visibleScoreGames.firstOrNull { it.state.equals("in", true) } ?: visibleScoreGames.firstOrNull()
+                if (featured != null) {
+                    Row(Modifier.fillMaxWidth().height(dpx(214)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+                        Column(Modifier.weight(1.05f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
+                            .background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35), Color(0xFF29204A))))
+                            .clickable { playScoreGame(featured) }.padding(dpx(18)),
+                            verticalArrangement = Arrangement.SpaceBetween) {
+                            Text(if (featured.state.equals("in", true)) "● LIVE NOW" else "FEATURED GAME", color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                            Column(verticalArrangement = Arrangement.spacedBy(dpx(9))) {
+                                Text(featured.league, color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(featured.away + "  vs  " + featured.home, color = Color.White, fontSize = spx(23), fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(featured.detail.ifBlank { featured.status }, color = Muted, fontSize = 13.sp)
+                            }
+                            Text("Tap to find a matching channel  ›", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
+                            .background(Color(0xCC17243D)).border(1.dp, Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM)).padding(dpx(18)),
+                            verticalArrangement = Arrangement.SpaceEvenly) {
+                            Text(featured.league.uppercase(), color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            ScoreTeamRow(featured.away, featured.awayLogo, featured.awayScore)
+                            ScoreTeamRow(featured.home, featured.homeLogo, featured.homeScore)
+                            Text(featured.status, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                } else {
+                    Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
+                        Text(if (scoreGames.isEmpty()) "Live scores are temporarily unavailable" else "No games listed for this league", color = Muted, fontSize = 14.sp)
+                    }
+                }
+            }
+            item(key = "score-filters") {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(9)), contentPadding = PaddingValues(vertical = dpx(4))) {
+                    item { FilterPill("With a channel", false) { selectedScoreLeague = "All" } }
+                    item { FilterPill("● Live", false) { selectedScoreLeague = "All" } }
+                    item { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
+                    items(scoreLeagues, key = { "league-chip-" + it }) { league ->
+                        FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league }
+                    }
+                }
+            }
+            item(key = "score-section") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                        Text(if (selectedScoreLeague == "All") "Live scores & games" else selectedScoreLeague, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                        Text("${visibleScoreGames.size} games", color = Muted, fontSize = 13.sp)
+                    }
+                    if (visibleScoreGames.isNotEmpty()) {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game) { playScoreGame(game) } }
+                        }
+                    } else {
+                        Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
                     }
                 }
             }
