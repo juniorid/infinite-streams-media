@@ -46,7 +46,7 @@ import androidx.media3.ui.PlayerView
  * Hinweis: Viele Anbieter erlauben nur eine Verbindung je Zugang – dann bricht der zweite Stream ab und die App meldet es.
  */
 @Composable
-internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, modifier: Modifier) {
+internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFill: Boolean = false, modifier: Modifier) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     val p = remember {
@@ -85,6 +85,7 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, modifier
                 PlayerView(c).apply {
                     useController = false
                     setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                    if (cropToFill) resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     this.player = p
                 }
             },
