@@ -126,7 +126,11 @@ object SportLogic {
         ScoreFeed("MLS", "soccer/usa.1"),
         ScoreFeed("Premier League", "soccer/eng.1"),
         ScoreFeed("Champions League", "soccer/uefa.champions"),
-        ScoreFeed("UFC", "mma/ufc")
+        ScoreFeed("UFC", "mma/ufc"),
+        ScoreFeed("Tennis", "tennis/atp"),
+        ScoreFeed("Golf", "golf/pga"),
+        ScoreFeed("Formula 1", "racing/f1"),
+        ScoreFeed("Cricket", "cricket/icc")
     )
 
     fun fetchScoreboards(): List<ScoreGame> {
