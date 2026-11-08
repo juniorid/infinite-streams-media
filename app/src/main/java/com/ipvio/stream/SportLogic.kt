@@ -150,7 +150,9 @@ object SportLogic {
         val detail: String, val home: String, val away: String,
         val homeScore: String, val awayScore: String,
         val homeLogo: String, val awayLogo: String, val status: String,
-        val periodScores: String = "", val lastPlay: String = "", val clock: String = "", val period: String = ""
+        val periodScores: String = "", val lastPlay: String = "", val clock: String = "", val period: String = "",
+        val awayPeriodScores: List<String> = emptyList(), val homePeriodScores: List<String> = emptyList(),
+        val awayRecord: String = "", val homeRecord: String = ""
     )
 
     private data class ScoreFeed(val label: String, val path: String)
@@ -310,6 +312,10 @@ object SportLogic {
                                     (0 until periods.length()).mapNotNull { idx -> periods.optJSONObject(idx)?.optString("displayValue")?.takeIf { it.isNotBlank() } }
                                         .joinToString("  |  ")
                                 }.let { scores -> if (scores.any { it.isNotBlank() }) "Away: ${scores[0]}   Home: ${scores[1]}" else "" },
+                                awayPeriodScores = (0 until (away.optJSONArray("linescores")?.length() ?: 0)).mapNotNull { idx -> away.optJSONArray("linescores")?.optJSONObject(idx)?.optString("displayValue")?.takeIf { it.isNotBlank() } },
+                                homePeriodScores = (0 until (home.optJSONArray("linescores")?.length() ?: 0)).mapNotNull { idx -> home.optJSONArray("linescores")?.optJSONObject(idx)?.optString("displayValue")?.takeIf { it.isNotBlank() } },
+                                awayRecord = away.optJSONArray("records")?.optJSONObject(0)?.optString("summary").orEmpty(),
+                                homeRecord = home.optJSONArray("records")?.optJSONObject(0)?.optString("summary").orEmpty(),
                                 lastPlay = comp.optJSONObject("situation")?.optJSONObject("lastPlay")?.optString("text").orEmpty(),
                                 clock = event.optJSONObject("status")?.optString("displayClock").orEmpty(),
                                 period = event.optJSONObject("status")?.optString("period").orEmpty()
