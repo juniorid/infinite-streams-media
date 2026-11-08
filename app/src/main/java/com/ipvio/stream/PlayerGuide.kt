@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -138,12 +139,17 @@ fun Guide(
     var rowReq by remember { mutableStateOf<FocusRequester?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     // Kategorien links (wie im Entwurf): aktuelle Liste, alle Sender, Favoriten, eigene Listen, Gruppen des Anbieters
-    val cats = remember(list, all, Library.favs.size, ChannelLists.lists.size) { guideCategories(list, all) }
+    val cats = remember(list, all, Library.favs.size, ChannelLists.lists.size, PlaylistStore.catOrder) { guideCategories(list, all) }
     var catIdx by remember { mutableIntStateOf(0) }
-    val shown = cats.getOrNull(catIdx)?.items ?: list
+    var guideQuery by remember { mutableStateOf("") }
+    val categoryItems = cats.getOrNull(catIdx)?.items ?: list
+    val shown = remember(categoryItems, guideQuery) {
+        val q = guideQuery.trim()
+        if (q.isEmpty()) categoryItems else categoryItems.filter { it.title.contains(q, ignoreCase = true) }
+    }
     val catReq = remember { FocusRequester() }
     val idx = shown.indexOfFirst { it.id == curId }.coerceAtLeast(0)
-    val ls = key(catIdx) { rememberLazyListState(maxOf(idx - 1, 0)) }
+    val ls = key(catIdx, guideQuery) { rememberLazyListState(maxOf(idx - 1, 0)) }
 
     // Programmdaten vorab laden: zuerst die Sender rund um den aktuellen, 8 gleichzeitig
     LaunchedEffect(shown) {
@@ -255,24 +261,43 @@ fun Guide(
             Spacer(Modifier.width(400.dp))
         }
         Row(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
-            // Kategorien
-            LazyColumn(
-                Modifier.width(206.dp).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusL)).background(Color(0x0FFFFFFF)),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
-                verticalArrangement = Arrangement.spacedBy(3.dp)
+            // Playlist categories and a channel-name search for the selected category.
+            Column(
+                Modifier.width(206.dp).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusL)).background(Color(0x0FFFFFFF)).padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                itemsIndexed(cats) { ci, c ->
-                    GuideCatRow(c, ci == catIdx, if (ci == catIdx) Modifier.focusRequester(catReq) else Modifier,
-                        onFocus = { inCats = true; inBlock = false; if (catIdx != ci) catIdx = ci }, onLeft = onClose) {
-                            // A touch/OK press must select this category even if the row did not gain TV focus first.
-                            catIdx = ci
-                            inCats = false
-                            inBlock = false
-                            scope.launch {
-                                androidx.compose.runtime.withFrameNanos { }
-                                runCatching { focus.requestFocus() }
+                Box(
+                    Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(DS.RadiusS))
+                        .background(Color(0x1FFFFFFF)).border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(DS.RadiusS)).padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (guideQuery.isEmpty()) Text("Search channels…", color = Muted, fontSize = 13.sp)
+                    BasicTextField(
+                        value = guideQuery,
+                        onValueChange = { guideQuery = it },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 14.sp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                LazyColumn(
+                    Modifier.weight(1f).fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    itemsIndexed(cats) { ci, c ->
+                        GuideCatRow(c, ci == catIdx, if (ci == catIdx) Modifier.focusRequester(catReq) else Modifier,
+                            onFocus = { inCats = true; inBlock = false; if (catIdx != ci) { catIdx = ci; guideQuery = "" } }, onLeft = onClose) {
+                                // A touch/OK press must select this category even if the row did not gain TV focus first.
+                                catIdx = ci
+                                guideQuery = ""
+                                inCats = false
+                                inBlock = false
+                                scope.launch {
+                                    androidx.compose.runtime.withFrameNanos { }
+                                    runCatching { focus.requestFocus() }
+                                }
                             }
-                        }
+                    }
                 }
             }
             Spacer(Modifier.width(12.dp))
@@ -359,7 +384,11 @@ fun guideCategories(list: List<Item>, all: List<Item>): List<GuideCat> {
     }
     val groups = LinkedHashMap<String, ArrayList<Item>>()
     for (it in all) groups.getOrPut(it.group) { ArrayList() }.add(it)
-    if (groups.size > 1) for ((g, l) in groups) out.add(GuideCat(g, l, null))
+    // Xtream category ordering is supplied by the playlist metadata; retain playlist encounter order as fallback.
+    val orderedGroups = if (PlaylistStore.catOrder.isNotEmpty()) {
+        groups.entries.sortedWith(compareBy<Map.Entry<String, ArrayList<Item>>> { PlaylistStore.catOrder[it.key] ?: Int.MAX_VALUE })
+    } else groups.entries.toList()
+    if (orderedGroups.size > 1) for ((g, l) in orderedGroups) out.add(GuideCat(g, l, null))
     return out
 }
 
