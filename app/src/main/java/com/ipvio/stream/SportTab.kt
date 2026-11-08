@@ -194,7 +194,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 val featured = visibleScoreGames.firstOrNull { it.id == selectedPreviewGameId }
                     ?: visibleScoreGames.firstOrNull { it.state.equals("in", true) }
                     ?: visibleScoreGames.firstOrNull()
-                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull())
+                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull(), onOpen = { playScoreGame(featured) })
                 else Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
                     Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
                 }
@@ -217,7 +217,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     if (visibleScoreGames.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { selectedPreviewGameId = game.id }, onLongClick = { chooseScoreChannel(game) }) }
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
                         }
                     } else {
                         Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
@@ -263,11 +263,11 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
                     val featuredFollowed = followed.firstOrNull { it.state.equals("in", true) } ?: followed.firstOrNull()
-                    if (featuredFollowed != null) FeaturedGamePanel(featuredFollowed, channelsForGame(featuredFollowed).firstOrNull())
+                    if (featuredFollowed != null) FeaturedGamePanel(featuredFollowed, channelsForGame(featuredFollowed).firstOrNull(), onOpen = { playScoreGame(featuredFollowed) })
                     if (favoriteTeams.value.isEmpty()) Text("No teams followed yet. Select Manage follows to choose a league and team.", color = Muted)
                     else if (followed.isEmpty()) Text("Your followed teams have no games listed right now.", color = Muted)
                     else LazyColumn(verticalArrangement = Arrangement.spacedBy(dpx(10)), modifier = Modifier.height(dpx(360))) {
-                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game, onClick = { selectedPreviewGameId = game.id }, onLongClick = { chooseScoreChannel(game) }) }
+                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
                     }
                 }
             }
@@ -647,10 +647,10 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
 }
 
 @Composable
-private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?) {
+private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?, onOpen: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(dpx(310)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
         Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM)).background(Color.Black)) {
-            if (previewChannel != null) SecondStream(previewChannel, split = false, audioOn = true, cropToFill = false, modifier = Modifier.fillMaxSize())
+            if (previewChannel != null) SecondStream(previewChannel, split = false, audioOn = true, cropToFill = false, selected = true, onSelect = onOpen, modifier = Modifier.fillMaxSize())
             else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35)))), contentAlignment = Alignment.Center) {
                 Text("No matching stream found for this game", color = Color.White, fontSize = 14.sp)
             }
