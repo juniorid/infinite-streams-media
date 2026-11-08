@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -77,7 +78,13 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
     var selectedScoreLeague by remember { mutableStateOf("All") }
-    val visibleScoreGames = if (selectedScoreLeague == "All") scoreGames else scoreGames.filter { it.league == selectedScoreLeague }
+    var liveOnlyScores by remember { mutableStateOf(false) }
+    var channelOnlyScores by remember { mutableStateOf(false) }
+    val visibleScoreGames = scoreGames.filter { game ->
+        (selectedScoreLeague == "All" || game.league == selectedScoreLeague) &&
+            (!liveOnlyScores || game.state.equals("in", true)) &&
+            (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 })
+    }
     fun playScoreGame(game: SportLogic.ScoreGame) {
         val ranked = channels.map { it to SportLogic.scoreChannelRank(game, it) }
             .filter { it.second >= 5 }
@@ -175,8 +182,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
             item(key = "score-filters") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(9)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                    item { FilterPill("With a channel", false) { selectedScoreLeague = "All" } }
-                    item { FilterPill("● Live", false) { selectedScoreLeague = "All" } }
+                    item { FilterPill("With a channel", channelOnlyScores) { channelOnlyScores = !channelOnlyScores } }
+                    item { FilterPill("● Live", liveOnlyScores) { liveOnlyScores = !liveOnlyScores } }
                     item { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
                     items(scoreLeagues, key = { "league-chip-" + it }) { league ->
                         FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league }
