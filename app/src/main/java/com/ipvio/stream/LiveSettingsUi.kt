@@ -28,14 +28,18 @@ internal fun LiveBufferSection(ctx: Context) {
     LiveSettings.init(ctx)
     SectionTitle("Zurückspulen und Aufnehmen")
     ToggleRow(
-        "Live TV zurückspulen",
-        "Speichert den laufenden Sender auf dem Gerät. Dann kannst du pausieren, ohne etwas zu verpassen, mit den Spultasten zurückspringen und mit „Zurück zu Live“ wieder aufholen. Gilt für normale Live-Streams (nicht HLS).",
+        "DVR / Timeshift aktivieren",
+        "Speichert Live-TV und Multi-View-Streams lokal auf dem Gerät. Damit kannst du pausieren und zurückspringen, auch wenn dein Anbieter kein Catch-up anbietet. Funktioniert mit kompatiblen fortlaufenden Streams; HLS-Playlists werden nicht unterstützt.",
         LiveSettings.timeshift
     ) { LiveSettings.setTimeshift(ctx, it) }
     val mbs = LiveSettings.BUFFER_MB
     val mbLabels = mbs.map { if (it >= 1024) "${it / 1024} GB" else "$it MB" }
     SelectRow("Puffergröße", mbLabels[mbs.indexOf(LiveSettings.bufferMb).coerceAtLeast(0)], mbLabels, mbs.indexOf(LiveSettings.bufferMb).coerceAtLeast(0)) {
         LiveSettings.setBufferMb(ctx, mbs[it])
+    }
+    val steps = LiveSettings.SEEK_STEPS
+    SelectRow("Timeshift-Sprungweite", "${LiveSettings.seekStepSeconds} Sekunden", steps.map { "$it Sekunden" }, steps.indexOf(LiveSettings.seekStepSeconds).coerceAtLeast(0)) {
+        LiveSettings.setSeekStep(ctx, steps[it])
     }
     Hint("Ungefähr: 512 MB reichen für 10–20 Minuten in HD. Der Puffer wird beim Schließen des Players gelöscht.")
     val dirs = remember { Recorder.dirs(ctx) }
