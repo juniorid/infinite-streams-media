@@ -111,6 +111,7 @@ fun Guide(
     onPick: (Item) -> Unit
 ) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     GuidePrefs.init(ctx)
     val openedAt = remember { System.currentTimeMillis() / 1000 }
     val base = (openedAt - 1800) - ((openedAt - 1800) % 1800)
@@ -262,7 +263,16 @@ fun Guide(
             ) {
                 itemsIndexed(cats) { ci, c ->
                     GuideCatRow(c, ci == catIdx, if (ci == catIdx) Modifier.focusRequester(catReq) else Modifier,
-                        onFocus = { inCats = true; inBlock = false; if (catIdx != ci) catIdx = ci }, onLeft = onClose) { runCatching { focus.requestFocus() } }
+                        onFocus = { inCats = true; inBlock = false; if (catIdx != ci) catIdx = ci }, onLeft = onClose) {
+                            // A touch/OK press must select this category even if the row did not gain TV focus first.
+                            catIdx = ci
+                            inCats = false
+                            inBlock = false
+                            scope.launch {
+                                androidx.compose.runtime.withFrameNanos { }
+                                runCatching { focus.requestFocus() }
+                            }
+                        }
                 }
             }
             Spacer(Modifier.width(12.dp))
