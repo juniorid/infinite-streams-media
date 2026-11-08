@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,8 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -302,24 +300,41 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         }
         channelPickerGame?.let { game ->
             val choices = channelsForGame(game)
-            AlertDialog(
-                onDismissRequest = { channelPickerGame = null },
-                title = { Text("Choose channel · ${game.away} vs ${game.home}") },
-                text = {
-                    if (choices.isEmpty()) Text("No sports channels or FOX One / ESPN channels were found in your playlist.")
-                    else LazyColumn(modifier = Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(6))) {
-                        items(choices, key = { "pick-" + it.id }) { channel ->
-                            TextButton(onClick = { channelPickerGame = null; playScoreGame(game, channel) }) {
-                                Column(horizontalAlignment = Alignment.Start) {
-                                    Text(channel.title, color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text(if (SportLogic.isSportChannel(channel)) "Sports category match" else "General sports network", color = Muted, fontSize = 11.sp)
+            Dialog(onDismissRequest = { channelPickerGame = null }) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL))
+                        .background(DS.Panel).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(DS.RadiusL))
+                        .padding(dpx(18)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(12))
+                ) {
+                    Text("Choose channel · ${game.away} vs ${game.home}", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
+                    if (choices.isEmpty()) {
+                        Text("No sports channels or FOX One / ESPN channels were found in your playlist.", color = Muted)
+                    } else {
+                        LazyColumn(modifier = Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+                            items(choices, key = { "pick-" + it.id }) { channel ->
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                        .background(Color(0x18FFFFFF)).clickable {
+                                            channelPickerGame = null
+                                            playScoreGame(game, channel)
+                                        }.padding(dpx(12)),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(dpx(10))
+                                ) {
+                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+                                        Text(channel.title, color = Color.White, fontWeight = FontWeight.Bold)
+                                        Text(if (SportLogic.isSportChannel(channel)) "Sports category match" else "General sports network", color = Muted, fontSize = 11.sp)
+                                    }
+                                    Text("WATCH", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 }
                             }
                         }
                     }
-                },
-                confirmButton = { TextButton(onClick = { channelPickerGame = null }) { Text("Cancel") } }
-            )
+                    Text("CANCEL", color = Accent2, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.End).clickable { channelPickerGame = null }.padding(8.dp))
+                }
+            }
         }
     }
 }
