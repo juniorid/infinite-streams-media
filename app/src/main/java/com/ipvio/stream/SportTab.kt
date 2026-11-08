@@ -6,6 +6,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -80,23 +84,28 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var selectedScoreLeague by remember { mutableStateOf("All") }
     var liveOnlyScores by remember { mutableStateOf(false) }
     var channelOnlyScores by remember { mutableStateOf(false) }
+    var hubSection by remember { mutableStateOf("Scores") }
+    var channelPickerGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
+    val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
+    fun toggleFavorite(team: String) {
+        val next = favoriteTeams.value.toMutableSet().apply { if (!add(team)) remove(team) }
+        favoriteTeams.value = next
+        context.getSharedPreferences("sports_hub", 0).edit().putStringSet("favorite_teams", next).apply()
+    }
     val visibleScoreGames = scoreGames.filter { game ->
         (selectedScoreLeague == "All" || game.league == selectedScoreLeague) &&
             (!liveOnlyScores || game.state.equals("in", true)) &&
             (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 })
     }
-    fun playScoreGame(game: SportLogic.ScoreGame) {
+    fun channelsForGame(game: SportLogic.ScoreGame): List<Item> {
         val ranked = channels.map { it to SportLogic.scoreChannelRank(game, it) }
-            .filter { it.second >= 5 }
-            .sortedByDescending { it.second }
-        val matches = ranked.map { it.first }
-        val channel = matches.firstOrNull()
-        if (channel == null) {
-            Toast.makeText(context, "No clearly matching " + game.league + " channel was found. Choose a sports channel from your playlist instead.", Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(context, "Opening " + channel.title + ". Check that your provider carries this game.", Toast.LENGTH_LONG).show()
-            onPlay(channel, matches)
-        }
+            .filter { it.second >= 5 }.sortedByDescending { it.second }.map { it.first }
+        val generic = liveChannelsForSports(live)
+        return (ranked + generic).distinctBy { it.id }
+    }
+    fun playScoreGame(game: SportLogic.ScoreGame, channel: Item) {
+        Toast.makeText(context, "Opening " + channel.title + " — provider availability may vary.", Toast.LENGTH_LONG).show()
+        onPlay(channel, channelsForGame(game))
     }
     // Runde 22: Filter nach Zeitfenster (3 Std. / heute / morgen) und Sportart; die Chips zeigen nur Sportarten mit Treffern
     var win by remember { mutableIntStateOf(0) }
@@ -133,8 +142,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(22))) {
                         listOf("Scores", "My teams", "Standings", "Channels", "Multi-View", "Map").forEachIndexed { index, label ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(6))) {
-                                Text(label, color = if (index == 0) Color.White else Muted, fontSize = spx(18), fontWeight = if (index == 0) FontWeight.Bold else FontWeight.Medium)
-                                Box(Modifier.width(if (index == 0) dpx(64) else 0.dp).height(dpx(3)).clip(RoundedCornerShape(50)).background(if (index == 0) Accent1 else Color.Transparent))
+                                Text(label, color = if (hubSection == label) Color.White else Muted, fontSize = spx(18), fontWeight = if (hubSection == label) FontWeight.Bold else FontWeight.Medium, modifier = Modifier.clickable { hubSection = label })
+                                Box(Modifier.width(if (hubSection == label) dpx(64) else 0.dp).height(dpx(3)).clip(RoundedCornerShape(50)).background(if (hubSection == label) Accent1 else Color.Transparent))
                             }
                         }
                         Spacer(Modifier.weight(1f))
@@ -155,7 +164,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Row(Modifier.fillMaxWidth().height(dpx(214)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
                         Column(Modifier.weight(1.05f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
                             .background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35), Color(0xFF29204A))))
-                            .clickable { playScoreGame(featured) }.padding(dpx(18)),
+                            .clickable { channelPickerGame = featured }.padding(dpx(18)),
                             verticalArrangement = Arrangement.SpaceBetween) {
                             Text(if (featured.state.equals("in", true)) "● LIVE NOW" else "FEATURED GAME", color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                             Column(verticalArrangement = Arrangement.spacedBy(dpx(9))) {
@@ -190,7 +199,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                 }
             }
-            item(key = "score-section") {
+            if (hubSection == "Scores") item(key = "score-section") {
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                         Text(if (selectedScoreLeague == "All") "Live scores & games" else selectedScoreLeague, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
@@ -198,14 +207,14 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     if (visibleScoreGames.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game) { playScoreGame(game) } }
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game) { channelPickerGame = game } }
                         }
                     } else {
                         Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
                     }
                 }
             }
-            if (slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "filters") {
+            if (hubSection == "Scores" && slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "filters") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10)), contentPadding = PaddingValues(vertical = dpx(4), horizontal = dpx(4))) {
                     val wins = listOf("Nächste 3 Std.", "Heute", "Morgen")
                     itemsIndexed(wins, key = { i, _ -> "w$i" }) { i, l ->
@@ -218,13 +227,13 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                 }
             }
-            if (now.isNotEmpty()) item(key = "now") {
+            if (hubSection == "Scores" && now.isNotEmpty()) item(key = "now") {
                 SportRow("Jetzt live", now, first = true) { s -> onPlay(s.ch, channels.ifEmpty { now.map { it.ch } }) }
             }
-            if (soon.isNotEmpty()) item(key = "soon") {
+            if (hubSection == "Scores" && soon.isNotEmpty()) item(key = "soon") {
                 SportRow(when (win) { 0 -> "Gleich"; 1 -> "Heute"; else -> "Morgen" }, soon, first = now.isEmpty()) { s -> onPlay(s.ch, channels.ifEmpty { soon.map { it.ch } }) }
             }
-            if (chShown.isNotEmpty()) item(key = "chs") {
+            if (hubSection == "Scores" && chShown.isNotEmpty()) item(key = "chs") {
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Text("Sportsender", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8), horizontal = dpx(4))) {
@@ -234,15 +243,88 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                 }
             }
-            if (nothing && slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "none") {
+            if (hubSection == "My teams") item(key = "my-teams") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(16))) {
+                    Text("My teams · Follow your favorites", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                    val teams = scoreGames.flatMap { listOf(it.home, it.away) }.distinct().sorted()
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                        items(teams, key = { "team-" + it }) { team ->
+                            FilterPill((if (favoriteTeams.value.contains(team)) "★ " else "☆ ") + team, favoriteTeams.value.contains(team)) { toggleFavorite(team) }
+                        }
+                    }
+                    val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
+                    if (followed.isEmpty()) Text("Choose teams above to follow them. Their games will appear here.", color = Muted)
+                    else LazyColumn(verticalArrangement = Arrangement.spacedBy(dpx(10)), modifier = Modifier.height(dpx(360))) {
+                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game) { channelPickerGame = game } }
+                    }
+                }
+            }
+            if (hubSection == "Channels") item(key = "sports-channels") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Text("Sports channels · Sport category first", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                    val sports = live.filter { SportLogic.isSportChannel(it) || Regex("fox\\s?one|espn\\s?\\+?|sports?\\s?networks?", RegexOption.IGNORE_CASE).containsMatchIn(it.title + " " + it.group) }
+                        .sortedWith(compareByDescending<Item> { SportLogic.categoryOf("", it.title + " " + it.group) != SportLogic.OTHER }.thenBy { it.title.lowercase() })
+                    if (sports.isEmpty()) Text("No sports channels found in your playlist.", color = Muted)
+                    else LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                        items(sports, key = { "sports-channel-" + it.id }) { channel -> SportChannelTile(channel, Modifier) { onPlay(channel, sports) } }
+                    }
+                }
+            }
+            if (hubSection == "Standings") item(key = "standings-placeholder") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Text("Standings", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                    Text("Select a league to view current standings. Standings data is not yet connected; live scores and team following are available.", color = Muted)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) { items(scoreLeagues, key = { "standings-" + it }) { FilterPill(it, selectedScoreLeague == it) { selectedScoreLeague = it } } }
+                }
+            }
+            if (hubSection == "Multi-View") item(key = "multi-view") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Text("Quick view", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                    Text("Choose a league to collect its games, then open a channel for each matchup. Simultaneous multi-screen playback depends on device support and is not enabled yet.", color = Muted)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) { items(scoreLeagues, key = { "quick-" + it }) { league -> FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league } } }
+                    val leagueGames = scoreGames.filter { selectedScoreLeague == "All" || it.league == selectedScoreLeague }
+                    if (leagueGames.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10))) { items(leagueGames, key = { "quick-game-" + it.id }) { game -> ScoreGameCard(game) { channelPickerGame = game } } }
+                }
+            }
+            if (hubSection == "Map") item(key = "sports-map") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Text("Sports map", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                    Text("Team and venue map data is not connected yet.", color = Muted)
+                }
+            }
+            if (hubSection == "Scores" && nothing && slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "none") {
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Text("Keine Sendungen für diese Auswahl", color = Muted, fontSize = 18.sp)
                     FilterPill("Filter zurücksetzen", false) { sport = -1; win = 0 }
                 }
             }
         }
+        channelPickerGame?.let { game ->
+            val choices = channelsForGame(game)
+            AlertDialog(
+                onDismissRequest = { channelPickerGame = null },
+                title = { Text("Choose channel · ${game.away} vs ${game.home}") },
+                text = {
+                    if (choices.isEmpty()) Text("No sports channels or FOX One / ESPN channels were found in your playlist.")
+                    else LazyColumn(modifier = Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+                        items(choices, key = { "pick-" + it.id }) { channel ->
+                            TextButton(onClick = { channelPickerGame = null; playScoreGame(game, channel) }) {
+                                Column(horizontalAlignment = Alignment.Start) {
+                                    Text(channel.title, color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(if (SportLogic.isSportChannel(channel)) "Sports category match" else "General sports network", color = Muted, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { channelPickerGame = null }) { Text("Cancel") } }
+            )
+        }
     }
 }
+
+private fun liveChannelsForSports(live: List<Item>): List<Item> =
+    live.filter { Regex("fox\\s?one|espn\\s?\\+?|sports?\\s?networks?", RegexOption.IGNORE_CASE).containsMatchIn(it.title + " " + it.group) }
 
 @Composable
 private fun SportRow(title: String, list: List<SportLogic.Slot>, first: Boolean, onClick: (SportLogic.Slot) -> Unit) {
