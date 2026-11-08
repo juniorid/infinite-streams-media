@@ -296,7 +296,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Text("Choose a league to collect its games, then open a channel for each matchup. Simultaneous multi-screen playback depends on device support and is not enabled yet.", color = Muted)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) { items(scoreLeagues, key = { "quick-" + it }) { league -> FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league } } }
                     val leagueGames = scoreGames.filter { selectedScoreLeague == "All" || it.league == selectedScoreLeague }
-                    if (leagueGames.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10))) { items(leagueGames, key = { "quick-game-" + it.id }) { game -> ScoreGameCard(game) { channelPickerGame = game } } }
+                    if (leagueGames.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10))) { items(leagueGames, key = { "quick-game-" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) } }
                 }
             }
             if (hubSection == "Map") item(key = "sports-map") {
@@ -331,7 +331,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                     Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
                                         .background(Color(0x18FFFFFF)).clickable {
                                             channelPickerGame = null
-                                            playScoreGame(game, channel)
+                                            onPlay(channel, choices)
                                         }.padding(dpx(12)),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(dpx(10))
