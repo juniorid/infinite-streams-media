@@ -83,9 +83,10 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
     LaunchedEffect(item.url, tap) {
         failed = false
         val source = if (tap != null) {
-            repeat(40) {
-                if (tap.index.size() > 0 && tap.nowMs() >= 2500) return@repeat
+            var waited = 0
+            while ((tap.index.size() == 0 || tap.nowMs() < 2500) && waited < 40) {
                 kotlinx.coroutines.delay(250)
+                waited++
             }
             val target = (tap.nowMs() - 2000).coerceAtLeast(tap.oldestMs())
             val byte = if (tap.index.size() == 0) tap.start else tap.index.byteAt(target)
