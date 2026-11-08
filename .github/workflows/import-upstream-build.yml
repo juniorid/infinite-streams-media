@@ -31,7 +31,9 @@ jobs:
           curl -fL https://codeload.github.com/Emrodev/IPVIO-Stream/tar.gz/refs/heads/main -o /tmp/upstream.tar.gz
           mkdir -p /tmp/upstream
           tar -xzf /tmp/upstream.tar.gz --strip-components=1 -C /tmp/upstream
-          rsync -a --delete --exclude='.git' --exclude='.github/workflows/import-upstream-build.yml' /tmp/upstream/ ./
+          # Keep this repository's workflow directory: the GitHub App token cannot
+          # write workflow files unless it has the separate "workflows" permission.
+          rsync -a --delete --exclude='.git' --exclude='.github/***' /tmp/upstream/ ./
           chmod +x ./gradlew
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
