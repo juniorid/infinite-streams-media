@@ -558,10 +558,9 @@ private fun GuideRow(
                         true
                     } else false
                 }
-                .combinedClickable(
-                    onClick = onPreview,
-                    onDoubleClick = onPick
-                )
+                // Use a normal clickable for immediate single-tap preview on phones/tablets.
+                // TV remote OK remains handled above; full-screen selection stays available through other guide actions.
+                .clickable(onClick = onPreview)
                 .focusable()
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
