@@ -1,5 +1,7 @@
 package com.ipvio.stream
 
+import android.widget.Toast
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +42,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,6 +61,7 @@ import kotlinx.coroutines.withContext
 fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SideEffect { ContentFocus.tab = MenuLogic.SPORT }
     val channels = remember(live) { live.filter { SportLogic.isSportChannel(it) } }
+    val context = LocalContext.current
     // Programm neu einordnen: beim Öffnen, wenn der TV-Guide fertig ist, und jede Minute
     var tick by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) { while (true) { delay(60_000); tick++ } }
@@ -70,6 +74,20 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     val allSoon = slots?.second.orEmpty()
     val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), tick) {
         value = withContext(IO) { SportLogic.fetchScoreboards() }
+    }
+    val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC")
+    var selectedScoreLeague by remember { mutableStateOf("All") }
+    val visibleScoreGames = if (selectedScoreLeague == "All") scoreGames else scoreGames.filter { it.league == selectedScoreLeague }
+    fun playScoreGame(game: SportLogic.ScoreGame) {
+        val targetCat = SportLogic.categoryOf("", game.league)
+        val matches = channels.filter { SportLogic.categoryOf("", it.title + " " + it.group) == targetCat }
+        val channel = matches.firstOrNull()
+        if (channel == null) {
+            Toast.makeText(context, "No matching sports channel found in your playlist. Add a channel for " + game.league + ".", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, "Opening " + channel.title + ". Game availability depends on your IPTV playlist.", Toast.LENGTH_LONG).show()
+            onPlay(channel, matches)
+        }
     }
     // Runde 22: Filter nach Zeitfenster (3 Std. / heute / morgen) und Sportart; die Chips zeigen nur Sportarten mit Treffern
     var win by remember { mutableIntStateOf(0) }
@@ -115,12 +133,18 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         Text("Live scores & games", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
                         Text("ESPN", color = Muted, fontSize = 12.sp)
                     }
-                    if (scoreGames.isEmpty()) {
-                        Text("No scoreboard data available right now", color = Muted, fontSize = 14.sp)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4), horizontal = dpx(4))) {
+                        item(key = "all-score-leagues") { FilterPill("All", selectedScoreLeague == "All") { selectedScoreLeague = "All" } }
+                        items(scoreLeagues, key = { "score-league-" + it }) { league ->
+                            FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league }
+                        }
+                    }
+                    if (visibleScoreGames.isEmpty()) {
+                        Text(if (scoreGames.isEmpty()) "Scoreboards are temporarily unavailable. Select a league to browse." else "No games currently listed for " + selectedScoreLeague + ".", color = Muted, fontSize = 14.sp)
                     } else {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(6), horizontal = dpx(4))) {
-                            items(scoreGames, key = { it.league + "|" + it.id }) { game ->
-                                ScoreGameCard(game)
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game ->
+                                ScoreGameCard(game) { playScoreGame(game) }
                             }
                         }
                     }
@@ -240,12 +264,13 @@ private fun SportChannelTile(c: Item, modifier: Modifier, onClick: () -> Unit) {
 
 
 @Composable
-private fun ScoreGameCard(game: SportLogic.ScoreGame) {
+private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.RadiusM)
     Column(
         Modifier.width(dpx(300)).clip(shape)
             .background(Color(0x1AFFFFFF))
             .border(1.dp, Color(0x1AFFFFFF), shape)
+            .clickable(onClick = onClick)
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(10))
     ) {
