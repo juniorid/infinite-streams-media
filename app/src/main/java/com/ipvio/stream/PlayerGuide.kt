@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.nativeKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -553,9 +554,12 @@ private fun GuideRow(
                 .onPreviewKeyEvent { ev ->
                     if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onClose(); true }
                     else if (ev.type == KeyEventType.KeyDown && (ev.key == Key.Enter || ev.key == Key.NumPadEnter || ev.key == Key.DirectionCenter)) {
-                        val now = System.currentTimeMillis()
-                        if (now - lastOkAt in 1..450L) { lastOkAt = 0L; onPick() }
-                        else { lastOkAt = now; onPreview() }
+                        // Ignore OS key-repeat events: one held OK press must never be mistaken for a second click.
+                        if (ev.nativeKeyEvent.repeatCount == 0) {
+                            val now = System.currentTimeMillis()
+                            if (now - lastOkAt in 1..650L) { lastOkAt = 0L; onPick() }
+                            else { lastOkAt = now; onPreview() }
+                        }
                         true
                     } else false
                 }
