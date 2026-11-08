@@ -225,7 +225,12 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                             onFocus = { sel = n }, onRight = { runCatching { firstChan.requestFocus() } },
                             onFav = { if (ml != null) listMenu = true else if (n != FAV_CAT && n != "ALL" && n != "REC") CatFavs.toggle(ctx, n) },
                             icon = icon, raw = ml != null
-                        ) { runCatching { firstChan.requestFocus() } }
+                        ) {
+                            // Touch clicks do not necessarily move Compose focus first; select explicitly.
+                            sel = n
+                            LiveMemory.setSel(ctx, n)
+                            runCatching { firstChan.requestFocus() }
+                        }
                         // Menü einer eigenen Liste: umbenennen, löschen
                         if (listMenu && ml != null) OptionPopup(listOf("Umbenennen", "Liste löschen"), -1, { listMenu = false }) { i ->
                             listMenu = false
@@ -337,6 +342,7 @@ private fun CatRow(
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight && e.nativeKeyEvent.repeatCount == 0) { onRight(); true } else false
             }
             .favKeys { onFav() }
+            .focusable()
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically
