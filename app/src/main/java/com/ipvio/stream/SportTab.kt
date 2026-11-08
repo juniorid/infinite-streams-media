@@ -81,6 +81,11 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
     var selectedScoreLeague by remember { mutableStateOf("All") }
+    var selectedStandingsLeague by remember { mutableStateOf("NFL") }
+    var standingsRefresh by remember { mutableIntStateOf(0) }
+    val standings by produceState<SportLogic.StandingsTable?>(null, selectedStandingsLeague, standingsRefresh) {
+        value = withContext(IO) { SportLogic.fetchStandings(selectedStandingsLeague) }
+    }
     var liveOnlyScores by remember { mutableStateOf(false) }
     var channelOnlyScores by remember { mutableStateOf(false) }
     var hubSection by remember { mutableStateOf("Scores") }
@@ -283,11 +288,58 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                 }
             }
-            if (hubSection == "Standings") item(key = "standings-placeholder") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Text("Standings", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                    Text("Select a league to view current standings. Standings data is not yet connected; live scores and team following are available.", color = Muted)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) { items(scoreLeagues, key = { "standings-" + it }) { FilterPill(it, selectedScoreLeague == it) { selectedScoreLeague = it } } }
+            if (hubSection == "Standings") item(key = "standings") {
+                Column(verticalArrangement = Arrangement.spacedBy(dpx(14))) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                        Text("Standings", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        Text("↻ Refresh", color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                .clickable { standingsRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(8)))
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4))) {
+                        items(scoreLeagues, key = { "standings-" + it }) { league ->
+                            FilterPill(league, selectedStandingsLeague == league) { selectedStandingsLeague = league }
+                        }
+                    }
+                    Text(selectedStandingsLeague, color = Accent2, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    val table = standings
+                    if (table == null) {
+                        Text("Loading ${selectedStandingsLeague} standings…", color = Muted)
+                    } else if (table.rows.isEmpty()) {
+                        Text("Standings are not currently available for ${selectedStandingsLeague}. Try refreshing later.", color = Muted)
+                    } else {
+                        table.groups.forEach { group ->
+                            val groupRows = table.rows.filter { it.group == group }
+                            if (groupRows.isNotEmpty()) {
+                                Text(group, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold)
+                                groupRows.forEach { row ->
+                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                        .background(DS.Overlay2).padding(horizontal = dpx(12), vertical = dpx(10)),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                                        Text(row.rank, color = Accent2, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
+                                        if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
+                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+                                            Text(row.team, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            if (row.summary.isNotBlank()) Text(row.summary, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        Text(row.record, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                        val ungrouped = table.rows.filter { it.group.isBlank() }
+                        if (ungrouped.isNotEmpty()) ungrouped.forEach { row ->
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                .padding(horizontal = dpx(12), vertical = dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                Text(row.rank, color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
+                                if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
+                                Text(row.team, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(row.record, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             }
             if (hubSection == "Multi-View") item(key = "multi-view") {
