@@ -296,9 +296,21 @@ object M3uParser {
     private fun classify(e: Entry, st: Stats, langOf: LangOf): Kinded? {
         if (isSeparator(e.name)) return null
         val m = SE.find(e.name)
-        val isSeriesUrl = e.url.contains("/series/")
-        val isMovie = e.url.contains("/movie/") || VIDEO_FILE.containsMatchIn(e.url) || VOD_GROUP.containsMatchIn(e.group)
-        val kind = if (m != null || isSeriesUrl) Kind.SERIES else if (isMovie) Kind.MOVIE else Kind.LIVE
+        val urlPath = e.url.substringBefore('?').lowercase()
+        // Xtream paths are authoritative: /live/ must never leak into VOD even when
+        // a provider names a channel group "Movies", "VOD", or uses a video-like suffix.
+        val isLiveUrl = urlPath.contains("/live/")
+        val isSeriesUrl = urlPath.contains("/series/")
+        val isMovieUrl = urlPath.contains("/movie/")
+        val hasVideoFile = VIDEO_FILE.containsMatchIn(urlPath)
+        val vodGroup = VOD_GROUP.containsMatchIn(e.group)
+        val kind = when {
+            isLiveUrl -> Kind.LIVE
+            m != null || isSeriesUrl -> Kind.SERIES
+            isMovieUrl || hasVideoFile -> Kind.MOVIE
+            vodGroup && !e.url.contains("/live/") -> Kind.MOVIE
+            else -> Kind.LIVE
+        }
         val lang = langOf.of(e.group, e.name, kind == Kind.LIVE)
         val countKey = if (kind == Kind.SERIES) (m?.groupValues?.get(1) ?: e.name).trim().lowercase() else null
         st.add(lang, e.info.length + e.url.length + 2, countKey)
