@@ -326,14 +326,14 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (now - lastStepT >= gap) stepSeek(d, turboStepMs(lvl, step, player.duration))
     }
 
-    fun switchTo(it: Item, src: List<Item>) {
+    fun switchTo(it: Item, src: List<Item>, keepGuide: Boolean = false) {
         if ((cur.live || cur.archive != null) && cur.itemId != it.id) lastChId = cur.itemId
         History.add(ctx, it.id)
         cur = PlayReq(it.title, it.url, it.id, true, 0L)
         zapSrc = src
         showChannels = false
         showCats = false
-        showGuide = false
+        if (!keepGuide) showGuide = false
         controls = false
         bannerTick++
     }
@@ -1519,8 +1519,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (showGuide) {
             Guide(
                 zapSrc, cur.itemId, guideFocus, onClose = { showGuide = false }, onArchive = { ch, e -> playArchive(ch, e) },
-                all = liveAll.ifEmpty { zapSrc }, onPickIn = { ch, src -> switchTo(ch, src) }
-            ) { switchTo(it, zapSrc) }
+                all = liveAll.ifEmpty { zapSrc },
+                onPreviewIn = { ch, src -> switchTo(ch, src, keepGuide = true) },
+                onPreview = { ch -> switchTo(ch, zapSrc, keepGuide = true) },
+                onPick = { ch -> switchTo(ch, zapSrc) }
+            )
         }
 
         // ---------------------------------------------------------------- Menüs
