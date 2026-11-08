@@ -304,11 +304,14 @@ object M3uParser {
         val isMovieUrl = urlPath.contains("/movie/")
         val hasVideoFile = VIDEO_FILE.containsMatchIn(urlPath)
         val vodGroup = VOD_GROUP.containsMatchIn(e.group)
+        val liveStreamFile = Regex("""\.(ts|m3u8|mpd|m3u)(\?.*)?$""", RegexOption.IGNORE_CASE).containsMatchIn(urlPath)
         val kind = when {
             isLiveUrl -> Kind.LIVE
             m != null || isSeriesUrl -> Kind.SERIES
             isMovieUrl || hasVideoFile -> Kind.MOVIE
-            vodGroup && !e.url.contains("/live/") -> Kind.MOVIE
+            // A category label alone is not proof of VOD: some providers put live channels
+            // in groups named "Movies" or "VOD". Require an actual VOD-style media file.
+            vodGroup && !liveStreamFile -> Kind.MOVIE
             else -> Kind.LIVE
         }
         val lang = langOf.of(e.group, e.name, kind == Kind.LIVE)
