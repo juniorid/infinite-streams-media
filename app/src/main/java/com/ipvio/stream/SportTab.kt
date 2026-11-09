@@ -722,7 +722,16 @@ private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?,
             ScoreTeamRow(game.home, game.homeLogo, game.homeScore, game.homeRecord, football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.homeTeamId)
             Text(listOf(game.status, game.detail, if (game.period.isNotBlank()) "Period ${game.period}" else "", if (game.clock.isNotBlank()) game.clock else "").filter { it.isNotBlank() }.distinct().joinToString(" · "), color = if (game.state.equals("in", true)) PT.Live else Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (game.awayPeriodScores.isNotEmpty() || game.homePeriodScores.isNotEmpty()) ScoreQuarterTable(game)
-            if (football && game.footballPlay.isNotBlank()) Text(game.footballPlay, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (football && game.footballPlay.isNotBlank()) {
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                        .background(Color(0x332B9B65)).padding(horizontal = dpx(10), vertical = dpx(7)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(2))
+                ) {
+                    Text("DOWN & DISTANCE", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(game.footballPlay, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                }
+            }
             if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
             if (game.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                 Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
