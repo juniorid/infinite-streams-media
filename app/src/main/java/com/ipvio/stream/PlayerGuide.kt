@@ -666,7 +666,7 @@ private fun GuideRow(
                                     ).show()
                                 }
                                 else if (e.end <= n && CatchupLogic.canPlay(cu, e.start, e.end, n)) onArchive(e)
-                                else onPick()
+                                else onPreview()
                             }
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         contentAlignment = Alignment.CenterStart
