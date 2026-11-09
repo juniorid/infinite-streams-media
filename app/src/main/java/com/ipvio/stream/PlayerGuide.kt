@@ -183,9 +183,10 @@ fun Guide(
     }
 
     fun shiftFor(e: EpgEntry) {
+        // Keep NOW at a fixed horizontal anchor while moving focus between programme blocks.
+        // The programme highlight may start before NOW; that must not pull focus into the channel column.
         timeWindowManuallyMoved = true
-        val center = e.start + minOf(e.end - e.start, viewMin * 60L) / 2
-        winStart = (center - viewMin * 30L).coerceIn(minStart, nowSec + maxSpan - viewMin * 60L)
+        winStart = (nowSec - 20 * 60L).coerceIn(minStart, nowSec + maxSpan - viewMin * 60L)
     }
 
     fun jumpNow() {

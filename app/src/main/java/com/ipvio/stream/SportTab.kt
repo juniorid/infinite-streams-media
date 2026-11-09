@@ -362,8 +362,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         val logo = teamCards.firstOrNull { it.first == activeTeam }?.second.orEmpty()
                         val recent = teamGames.filter { it.state.equals("post", true) || it.status.contains("final", true) }
                         val upcoming = teamGames.filterNot { it.state.equals("post", true) || it.status.contains("final", true) }
-                        val wins = recent.count { game -> (game.home == activeTeam && game.homeScore.toIntOrNull() ?: 0) > (game.awayScore.toIntOrNull() ?: 0) ||
-                            (game.away == activeTeam && (game.awayScore.toIntOrNull() ?: 0) > (game.homeScore.toIntOrNull() ?: 0)) }
+                        val wins = recent.count { game ->
+                            val homeScore = game.homeScore.toIntOrNull() ?: 0
+                            val awayScore = game.awayScore.toIntOrNull() ?: 0
+                            (game.home == activeTeam && homeScore > awayScore) ||
+                                (game.away == activeTeam && awayScore > homeScore)
+                        }
                         val losses = recent.size - wins
                         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xCC17243D)).padding(dpx(16)),
                             verticalArrangement = Arrangement.spacedBy(dpx(10))) {
@@ -516,7 +520,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         }
         if (manageLeagues) {
             val firstLeagueFocus = remember { FocusRequester() }
-            LaunchedEffect(manageLeagues) { if (manageLeagues) { delay(120); runCatching { firstLeagueFocus.requestFocus() } } }
+            val firstActionFocus = remember { FocusRequester() }
+            LaunchedEffect(manageLeagues) { if (manageLeagues) { delay(180); runCatching { firstActionFocus.requestFocus() } } }
             Dialog(onDismissRequest = { manageLeagues = false }) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(10))) {
@@ -525,13 +530,13 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
                         var selectAllFocused by remember { mutableStateOf(false) }
                         var clearAllFocused by remember { mutableStateOf(false) }
-                        Box(Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(if (selectAllFocused) Color(0xFF245B22) else DS.Overlay3)
+                        Box(Modifier.focusRequester(firstActionFocus).clip(RoundedCornerShape(DS.RadiusS)).background(if (selectAllFocused) Color(0xFF245B22) else DS.Overlay3)
                             .border(if (selectAllFocused) 3.dp else 1.dp, if (selectAllFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
                             .onFocusChanged { selectAllFocused = it.isFocused }.clickable {
                                 enabledLeagues.value = scoreLeagues.toSet()
                                 context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toMutableSet()).apply()
                                 selectedScoreLeague = "All"
-                            }.focusable().padding(horizontal = dpx(18), vertical = dpx(12))) {
+                            }.padding(horizontal = dpx(18), vertical = dpx(12))) {
                             Text("SELECT ALL", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                         Box(Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(if (clearAllFocused) Color(0xFF245B22) else DS.Overlay3)
