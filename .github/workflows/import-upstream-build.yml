@@ -1,4 +1,5 @@
 name: Build Infinite Streams Media APK
+# Trigger a release verification build when app version metadata changes.
 
 on:
   workflow_dispatch:
