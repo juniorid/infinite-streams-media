@@ -152,7 +152,7 @@ fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
     } else {
         // Resolve Stalker portal items first, as the main player does, then play the resolved URL.
         SecondStream(
-            item = ch.copy(url = resolvedUrl),
+            item = ch.copy(url = resolvedUrl.orEmpty()),
             split = false,
             audioOn = false,
             cropToFill = false,

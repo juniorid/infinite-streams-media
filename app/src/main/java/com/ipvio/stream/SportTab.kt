@@ -74,8 +74,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     LaunchedEffect(Unit) { while (true) { delay(300_000); tick++ } }
     var hubSection by remember { mutableStateOf("Scores") }
     val sportsInput = remember(channels) { channels }
-    val slots by produceState<Pair<List<SportLogic.Slot>, List<SportLogic.Slot>>?>(null, sportsInput, tick, Xmltv.channelCount, hubSection) {
-        if (hubSection == "Scores") value = withContext(Dispatchers.Default) {
+    val slots by produceState<Pair<List<SportLogic.Slot>, List<SportLogic.Slot>>?>(null, sportsInput, tick, Xmltv.channelCount) {
+        value = withContext(Dispatchers.Default) {
             SportLogic.slots(sportsInput, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000, 48 * 3600L, 300)
         }
     }
@@ -114,9 +114,15 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var selectedScoreLeague by remember { mutableStateOf("All") }
     var selectedStandingsLeague by remember { mutableStateOf("NFL") }
     var standingsRefresh by remember { mutableIntStateOf(0) }
-    val standings by produceState<SportLogic.StandingsTable?>(null, selectedStandingsLeague, standingsRefresh, hubSection) {
-        if (hubSection == "Standings") {
-            value = withContext(IO) { SportLogic.fetchStandings(selectedStandingsLeague) }
+    var standings by remember { mutableStateOf<SportLogic.StandingsTable?>(null) }
+    var standingsLoadedLeague by remember { mutableStateOf<String?>(null) }
+    var standingsLoadedRefresh by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(selectedStandingsLeague, standingsRefresh, hubSection) {
+        if (hubSection == "Standings" &&
+            (standingsLoadedLeague != selectedStandingsLeague || standingsLoadedRefresh != standingsRefresh)) {
+            standings = withContext(IO) { SportLogic.fetchStandings(selectedStandingsLeague) }
+            standingsLoadedLeague = selectedStandingsLeague
+            standingsLoadedRefresh = standingsRefresh
         }
     }
     var liveOnlyScores by remember { mutableStateOf(false) }
