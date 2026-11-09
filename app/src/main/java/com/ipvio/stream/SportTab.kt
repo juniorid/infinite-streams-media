@@ -186,32 +186,42 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
         ) {
             item(key = "head") {
                 Column(verticalArrangement = Arrangement.spacedBy(dpx(16))) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(22))) {
-                        listOf("Scores", "My teams", "Standings", "Multi-View").forEach { label ->
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(dpx(12)),
+                        contentPadding = PaddingValues(horizontal = dpx(4), vertical = dpx(4))
+                    ) {
+                        items(listOf("Scores", "My teams", "Standings", "Multi-View"), key = { "hub-tab-" + it }) { label ->
                             var tabFocused by remember(label) { mutableStateOf(false) }
                             Column(
                                 Modifier.clip(RoundedCornerShape(DS.RadiusS))
-                                    .background(if (tabFocused) Color(0xFF245B22) else Color.Transparent)
+                                    .background(if (tabFocused || hubSection == label) Color(0xFF245B22) else Color.Transparent)
                                     .border(if (tabFocused) 2.dp else 1.dp, if (tabFocused) Color(0xFF9BE15D) else Color.Transparent, RoundedCornerShape(DS.RadiusS))
-                                    .onFocusChanged { tabFocused = it.isFocused }
-                                    .focusable()
                                     .clickable { hubSection = label; if (label == "Multi-View") showMultiViewFullscreen = true }
-                                    .padding(horizontal = dpx(8), vertical = dpx(5)),
-                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(6))
+                                    .onFocusChanged { tabFocused = it.isFocused }
+                                    .padding(horizontal = dpx(14), vertical = dpx(9)),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(dpx(4))
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
-                                    Text(label, color = if (hubSection == label) Color.White else Muted, fontSize = spx(18), fontWeight = if (hubSection == label) FontWeight.Bold else FontWeight.Medium)
-                                    if (label == "My teams" && scoreGames.any { it.state.equals("in", true) && (favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away)) }) Box(Modifier.size(dpx(9)).clip(RoundedCornerShape(50)).background(Color.Red))
-                                }
-                                Box(Modifier.width(if (hubSection == label) dpx(64) else 0.dp).height(dpx(3)).clip(RoundedCornerShape(50)).background(if (hubSection == label) Accent1 else Color.Transparent))
+                                Text(label, color = Color.White, fontSize = spx(18), fontWeight = if (hubSection == label) FontWeight.Bold else FontWeight.Medium)
+                                Box(Modifier.width(if (hubSection == label) dpx(54) else 0.dp).height(dpx(3)).clip(RoundedCornerShape(50)).background(if (hubSection == label) Color(0xFF9BE15D) else Color.Transparent))
                             }
                         }
-                        Spacer(Modifier.weight(1f))
+                    }
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(dpx(10))
+                    ) {
                         Text("EDIT LEAGUES", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2).clickable { manageLeagues = true }.padding(horizontal = dpx(12), vertical = dpx(9)))
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                .clickable { manageLeagues = true }.onFocusChanged { }
+                                .focusable().padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2).clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(9)))
-                        Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2).clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
+                            modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
+                                .clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                        Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
+                            .clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                         Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
@@ -694,11 +704,13 @@ private fun SportChannelTile(c: Item, modifier: Modifier, onClick: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLongClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.RadiusM)
+    var focused by remember { mutableStateOf(false) }
     Column(
         Modifier.width(dpx(300)).clip(shape)
-            .background(Color(0x1AFFFFFF))
-            .border(1.dp, Color(0x1AFFFFFF), shape)
+            .background(if (focused) Color(0xFF245B22) else Color(0x1AFFFFFF))
+            .border(if (focused) 2.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x1AFFFFFF), shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .onFocusChanged { focused = it.isFocused }
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(10))
     ) {
