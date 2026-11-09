@@ -136,7 +136,10 @@ fun Guide(
     val rowH = rowHeights[GuidePrefs.rowSize]
     val maxSpan = 2880L * 60
     var viewMin by remember { mutableIntStateOf(150) }
-    var winStart by remember { mutableLongStateOf(base) }
+    // Keep NOW at a stable x-position while browsing vertically through channel rows.
+    var timeWindowManuallyMoved by remember { mutableStateOf(false) }
+    var winStart by remember { mutableLongStateOf(openedAt - 20 * 60L) }
+    LaunchedEffect(nowSec) { if (!timeWindowManuallyMoved) winStart = nowSec - 20 * 60L }
     var infoE by remember { mutableStateOf<EpgEntry?>(null) }
     var infoItem by remember { mutableStateOf<Item?>(null) }
     var inBlock by remember { mutableStateOf(false) }
@@ -180,12 +183,14 @@ fun Guide(
     }
 
     fun shiftFor(e: EpgEntry) {
+        timeWindowManuallyMoved = true
         val center = e.start + minOf(e.end - e.start, viewMin * 60L) / 2
-        winStart = (center - viewMin * 30L).coerceIn(minStart, base + maxSpan - viewMin * 60L)
+        winStart = (center - viewMin * 30L).coerceIn(minStart, nowSec + maxSpan - viewMin * 60L)
     }
 
     fun jumpNow() {
-        winStart = (nowSec - 20 * 60L).coerceIn(minStart, base + maxSpan - viewMin * 60L)
+        timeWindowManuallyMoved = false
+        winStart = (nowSec - 20 * 60L).coerceIn(minStart, nowSec + maxSpan - viewMin * 60L)
         runCatching { focus.requestFocus() }
     }
 
@@ -552,9 +557,8 @@ private fun GuideRow(
                     f = it.isFocused
                     if (it.isFocused) {
                         onBlock(false, cellReq)
-                        val now = Epg.current(entries)
-                        onInfo(now)
-                        if (now != null) onShift(now)
+                        // Vertical channel scrolling must not move the time window.
+                        onInfo(Epg.current(entries))
                     }
                 }
                 .onPreviewKeyEvent { ev ->

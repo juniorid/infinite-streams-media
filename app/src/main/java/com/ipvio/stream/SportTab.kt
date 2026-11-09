@@ -88,10 +88,18 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     var scoreRefresh by remember { mutableIntStateOf(0) }
     var manageFollows by remember { mutableStateOf(false) }
-    // Load every league on My Teams / Manage Follows, even if Scores filters were cleared.
-    val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, enabledLeagues.value, hubSection, manageFollows) {
-        val leagues = if (hubSection == "My teams" || manageFollows) scoreLeagues.toSet() else enabledLeagues.value
-        value = withContext(IO) { SportLogic.fetchScoreboards(leagues) }
+    // Keep fetched scoreboards cached while moving between Sports Hub tabs. Fetch only leagues
+    // that have not been loaded yet; tab changes no longer trigger another network round-trip.
+    var scoreGames by remember { mutableStateOf<List<SportLogic.ScoreGame>>(emptyList()) }
+    var loadedScoreLeagues by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val requestedScoreLeagues = if (hubSection == "My teams" || manageFollows) scoreLeagues.toSet() else enabledLeagues.value
+    LaunchedEffect(scoreRefresh, requestedScoreLeagues) {
+        val missing = requestedScoreLeagues - loadedScoreLeagues
+        if (missing.isNotEmpty()) {
+            val fresh = withContext(IO) { SportLogic.fetchScoreboards(missing) }
+            scoreGames = (scoreGames.filterNot { it.league in missing } + fresh).distinctBy { it.league + "|" + it.id }
+            loadedScoreLeagues = loadedScoreLeagues + missing
+        }
     }
     val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
     var manageLeagues by remember { mutableStateOf(false) }
@@ -232,7 +240,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 .onFocusChanged { todayFocused = it.isFocused }.clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
                             .border(if (refreshFocused) 3.dp else 1.dp, if (refreshFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(50))
-                            .onFocusChanged { refreshFocused = it.isFocused }.clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
+                            .onFocusChanged { refreshFocused = it.isFocused }.clickable { tick++; scoreGames = emptyList(); loadedScoreLeagues = emptySet(); scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                         Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
@@ -310,9 +318,10 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         Text("My Teams", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
                         Text("MANAGE FOLLOWS", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.focusRequester(manageFollowsFocus).onFocusChanged { manageFollowsFocused = it.isFocused }.focusable()
+                            modifier = Modifier.focusRequester(manageFollowsFocus)
                                 .clip(RoundedCornerShape(DS.RadiusS)).background(if (manageFollowsFocused) Color(0xFF245B22) else DS.Overlay2)
                                 .border(if (manageFollowsFocused) 3.dp else 1.dp, if (manageFollowsFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
+                                .onFocusChanged { manageFollowsFocused = it.isFocused }
                                 .clickable { manageFollows = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
                     }
                     val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
