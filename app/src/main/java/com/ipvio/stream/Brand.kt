@@ -7,8 +7,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 
 /**
- * Das IPVIO-Zeichen (Play-Symbol mit Farbverlauf) als Bild: res/drawable/ic_brand_mark.png.
- * Der Schriftzug "IPVIO" wird daneben als weißer Text gesetzt.
+ * Das Infinite Streams-Zeichen als Bild: res/drawable/ic_brand_mark.png.
+ * Das Infinite Streams Media Logo wird an dieser Stelle verwendet.
  */
 @Composable
 fun BrandMark(modifier: Modifier = Modifier) {
