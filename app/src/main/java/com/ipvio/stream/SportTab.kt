@@ -692,8 +692,11 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
                 fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1
             )
         }
-        ScoreTeamRow(game.away, game.awayLogo, game.awayScore)
-        ScoreTeamRow(game.home, game.homeLogo, game.homeScore)
+        val football = game.league == "NFL" || game.league == "College Football"
+        ScoreTeamRow(game.away, game.awayLogo, game.awayScore, hasBall = football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.awayTeamId)
+        ScoreTeamRow(game.home, game.homeLogo, game.homeScore, hasBall = football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.homeTeamId)
+        if (football && game.footballPlay.isNotBlank()) Text(game.footballPlay, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
         Text(game.status, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
@@ -714,10 +717,13 @@ private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?,
             verticalArrangement = Arrangement.spacedBy(dpx(8))) {
             Text(game.league.uppercase(), color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(game.name, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            ScoreTeamRow(game.away, game.awayLogo, game.awayScore, game.awayRecord)
-            ScoreTeamRow(game.home, game.homeLogo, game.homeScore, game.homeRecord)
+            val football = game.league == "NFL" || game.league == "College Football"
+            ScoreTeamRow(game.away, game.awayLogo, game.awayScore, game.awayRecord, football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.awayTeamId)
+            ScoreTeamRow(game.home, game.homeLogo, game.homeScore, game.homeRecord, football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.homeTeamId)
             Text(listOf(game.status, game.detail, if (game.period.isNotBlank()) "Period ${game.period}" else "", if (game.clock.isNotBlank()) game.clock else "").filter { it.isNotBlank() }.distinct().joinToString(" · "), color = if (game.state.equals("in", true)) PT.Live else Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (game.awayPeriodScores.isNotEmpty() || game.homePeriodScores.isNotEmpty()) ScoreQuarterTable(game)
+            if (football && game.footballPlay.isNotBlank()) Text(game.footballPlay, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
             if (game.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                 Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                 Text(game.lastPlay, color = Color.White, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
@@ -747,13 +753,14 @@ private fun ScoreQuarterTable(game: SportLogic.ScoreGame) {
 }
 
 @Composable
-private fun ScoreTeamRow(name: String, logo: String, score: String, record: String = "") {
+private fun ScoreTeamRow(name: String, logo: String, score: String, record: String = "", hasBall: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(dpx(38)).clip(RoundedCornerShape(DS.RadiusXs)).background(DS.Overlay2), contentAlignment = Alignment.Center) {
             if (logo.isNotBlank()) AsyncImage(logo, null, Modifier.fillMaxSize().padding(3.dp), contentScale = ContentScale.Fit)
             else Text(name.take(2).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (hasBall) Text("🏈", fontSize = 14.sp)
             Text(name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (record.isNotBlank()) Text("($record)", color = Muted, fontSize = 11.sp, maxLines = 1)
         }
