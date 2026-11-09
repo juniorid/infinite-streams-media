@@ -2,7 +2,7 @@
 <!-- Keep the complete logo inside the adaptive icon's safe area. -->
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:drawable="@drawable/ic_logo_fg"
-    android:insetLeft="34dp"
-    android:insetTop="34dp"
-    android:insetRight="34dp"
-    android:insetBottom="34dp" />
+    android:insetLeft="18dp"
+    android:insetTop="18dp"
+    android:insetRight="18dp"
+    android:insetBottom="18dp" />
