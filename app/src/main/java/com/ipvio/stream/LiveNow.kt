@@ -131,10 +131,6 @@ fun LiveNowPanel(ch: Item?, modifier: Modifier = Modifier) {
 /** Muted, lightweight live preview for the channel currently highlighted in the Live TV list. */
 @Composable
 fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
-    val resolvedUrl by produceState<String?>(null, ch?.id, ch?.url) {
-        value = if (ch == null) null else if (StalkerLogic.isItem(ch.url)) StalkerApi.resolve(ctx, ch.url) else ch.url
-    }
     if (ch == null) {
         Box(
             modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(dpx(18)))
@@ -143,20 +139,14 @@ fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
         ) {
             Text("Select a channel to preview", color = Muted, fontSize = 14.sp)
         }
-    } else if (resolvedUrl.isNullOrBlank()) {
-        Box(
-            modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(dpx(18)))
-                .background(Color(0xFF05070B)).border(1.dp, Accent1.copy(alpha = .65f), RoundedCornerShape(dpx(18))),
-            contentAlignment = Alignment.Center
-        ) { Text("Resolving live stream…", color = Muted, fontSize = 14.sp) }
     } else {
-        // Resolve Stalker portal items first, as the main player does, then play the resolved URL.
+        // Reuse the same tested playback path as Multi-View: tap-buffer support, shared HTTP source,
+        // Media3 format handling and the normal stream-open helper.
         SecondStream(
-            item = ch.copy(url = resolvedUrl.orEmpty()),
+            item = ch,
             split = false,
             audioOn = false,
             cropToFill = false,
-            useTimeshift = false,
             modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)
         )
     }

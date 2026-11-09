@@ -133,10 +133,13 @@ fun SearchScreen(
                                 SearchState.query, { SearchState.query = it }, "Filme, Serien oder Sender suchen…",
                                 Modifier.weight(1f), inner = Modifier.focusRequester(ContentFocus.req).onFocusChanged { fieldFocused = it.isFocused }
                             )
-                            // Sprachsuche: System-Spracherkennung, wo erlaubt. „Mit dem Handy suchen“ ist entfallen (Runde 14):
-                            // Fire TV hat dafür eine eigene App.
-                            if (canVoice) PillButton("Sprechen", icon = AIcon.Mic) {
-                                runCatching { voice.launch(VoiceSearch.intent()) }.onFailure { canVoice = false }
+                            // Keep voice search visible on phones and Android TV devices; some TV builds report
+                            // recognition availability incorrectly until the recognizer activity is launched.
+                            PillButton("Sprachsuche", icon = AIcon.Mic) {
+                                val launched = runCatching { voice.launch(VoiceSearch.intent()) }.isSuccess
+                                if (!launched) {
+                                    runCatching { voice.launch(VoiceSearch.fallbackIntent()) }
+                                }
                             }
                         }
                     }
