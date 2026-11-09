@@ -8,6 +8,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.io.Writer
+import java.io.BufferedReader
 
 /**
  * Lädt einen Xtream-Zugang über player_api.php und schreibt daraus eine Liste im get.php-Format (siehe [XtreamLogic]).
@@ -82,7 +83,7 @@ class XtreamApi(private val client: OkHttpClient, private val ua: String) {
         client.newCall(req(url)).execute().use { r ->
             if (!r.isSuccessful) throw PlaylistError(PlaylistLogic.httpError(r.code))
             val body = r.body ?: return
-            JsonReader(body.charStream()).use { jr ->
+            JsonReader(BufferedReader(body.charStream(), 1 shl 16)).use { jr ->
                 jr.isLenient = true
                 if (jr.peek() != JsonToken.BEGIN_ARRAY) return
                 jr.beginArray()
@@ -204,10 +205,13 @@ class XtreamApi(private val client: OkHttpClient, private val ua: String) {
 
         onPhase("Serien werden geladen …")
         val serCats = categories(a, "get_series_categories")
-        val series = ArrayList<XtreamLogic.Series>()
-        stream(XtreamLogic.api(a, "get_series")) { f -> XtreamLogic.seriesOf(f, serCats)?.let { series.add(it) } }
-        // Schnell: pro Serie nur ein Platzhalter; die Folgen kommen erst beim Öffnen der Serie (LazySeries)
-        for (s in series) { out.write(XtreamLogic.lazyEntry(a, s)); out.write("\n"); n++ }
+        // Stream series placeholders directly to disk instead of retaining every Series object.
+        // Episodes are fetched lazily only when a series is opened.
+        stream(XtreamLogic.api(a, "get_series")) { f ->
+            XtreamLogic.seriesOf(f, serCats)?.let { series ->
+                out.write(XtreamLogic.lazyEntry(a, series)); out.write("\n"); n++
+            }
+        }
         out.flush()
         return n
     }
