@@ -156,6 +156,7 @@ fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
             split = false,
             audioOn = false,
             cropToFill = false,
+            useTimeshift = false,
             modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)
         )
     }

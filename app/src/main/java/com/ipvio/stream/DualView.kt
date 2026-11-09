@@ -47,7 +47,7 @@ import androidx.media3.ui.PlayerView
  * Hinweis: Viele Anbieter erlauben nur eine Verbindung je Zugang – dann bricht der zweite Stream ab und die App meldet es.
  */
 @Composable
-internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFill: Boolean = false, selected: Boolean = false, onSelect: () -> Unit = {}, modifier: Modifier) {
+internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFill: Boolean = false, selected: Boolean = false, onSelect: () -> Unit = {}, useTimeshift: Boolean = true, modifier: Modifier) {
     val ctx = LocalContext.current
     var failed by remember { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(true) }
@@ -70,8 +70,8 @@ internal fun SecondStream(item: Item, split: Boolean, audioOn: Boolean, cropToFi
             }
     }
     LiveSettings.init(ctx)
-    val tap = remember(item.url, LiveSettings.timeshift) {
-        if (LiveSettings.timeshift && TapLogic.tappable(item.url)) LiveTaps.open(ctx, item.url) else null
+    val tap = remember(item.url, LiveSettings.timeshift, useTimeshift) {
+        if (useTimeshift && LiveSettings.timeshift && TapLogic.tappable(item.url)) LiveTaps.open(ctx, item.url) else null
     }
     var tapBaseMs by remember(item.url) { mutableStateOf(0L) }
     DisposableEffect(tap) { onDispose { tap?.release() } }
