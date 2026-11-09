@@ -112,7 +112,8 @@ object General {
         refreshMinute = p.getInt("refresh_minute", 0).coerceIn(0, 59)
         refreshDow = p.getInt("refresh_dow", java.util.Calendar.MONDAY).coerceIn(1, 7)
         lastRefresh = p.getLong("last_refresh", 0L)
-        lang = (p.getString("lang", "en") ?: "en").ifBlank { "en" }
+        lang = "en"
+        p.edit().putString("lang", "en").apply()
         tzId = p.getString("tz_id", "") ?: ""
         timeFmt = p.getInt("time_fmt", 0).coerceIn(0, 2)
         sys24 = android.text.format.DateFormat.is24HourFormat(c)
