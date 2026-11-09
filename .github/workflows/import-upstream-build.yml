@@ -44,3 +44,5 @@ jobs:
           if-no-files-found: error
 
 # Rebuild on version metadata updates.
+
+# Re-run APK verification against the current repaired source.
