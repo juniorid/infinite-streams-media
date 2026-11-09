@@ -47,6 +47,9 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.aspectRatio
 
 /*
  * Runde 17b – Live TV im „Cinematic“-Stil (Entwurf Bild 3): Hintergrund in der Farbe des markierten Senders mit großem,
