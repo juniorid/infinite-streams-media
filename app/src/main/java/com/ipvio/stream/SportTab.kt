@@ -92,13 +92,23 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     // that have not been loaded yet; tab changes no longer trigger another network round-trip.
     var scoreGames by remember { mutableStateOf<List<SportLogic.ScoreGame>>(emptyList()) }
     var loadedScoreLeagues by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var loadedSeasonLeagues by remember { mutableStateOf<Set<String>>(emptySet()) }
     val requestedScoreLeagues = if (hubSection == "My teams" || manageFollows) scoreLeagues.toSet() else enabledLeagues.value
-    LaunchedEffect(scoreRefresh, requestedScoreLeagues) {
-        val missing = requestedScoreLeagues - loadedScoreLeagues
-        if (missing.isNotEmpty()) {
-            val fresh = withContext(IO) { SportLogic.fetchScoreboards(missing) }
-            scoreGames = (scoreGames.filterNot { it.league in missing } + fresh).distinctBy { it.league + "|" + it.id }
-            loadedScoreLeagues = loadedScoreLeagues + missing
+    LaunchedEffect(scoreRefresh, requestedScoreLeagues, hubSection) {
+        if (hubSection == "My teams") {
+            val missingSeason = requestedScoreLeagues - loadedSeasonLeagues
+            if (missingSeason.isNotEmpty()) {
+                val fresh = withContext(IO) { SportLogic.fetchScoreboards(missingSeason, fullSeason = true) }
+                scoreGames = (scoreGames.filterNot { it.league in missingSeason } + fresh).distinctBy { it.league + "|" + it.id }
+                loadedSeasonLeagues = loadedSeasonLeagues + missingSeason
+            }
+        } else {
+            val missing = requestedScoreLeagues - loadedScoreLeagues
+            if (missing.isNotEmpty()) {
+                val fresh = withContext(IO) { SportLogic.fetchScoreboards(missing) }
+                scoreGames = (scoreGames.filterNot { it.league in missing } + fresh).distinctBy { it.league + "|" + it.id }
+                loadedScoreLeagues = loadedScoreLeagues + missing
+            }
         }
     }
     val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
@@ -113,6 +123,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     LaunchedEffect(Unit) { delay(150); runCatching { editLeaguesFocus.requestFocus() } }
     var selectedScoreLeague by remember { mutableStateOf("All") }
     var selectedStandingsLeague by remember { mutableStateOf("NFL") }
+    var selectedStandingsConference by remember { mutableStateOf("All") }
     var standingsRefresh by remember { mutableIntStateOf(0) }
     var standings by remember { mutableStateOf<SportLogic.StandingsTable?>(null) }
     var selectedTeam by remember { mutableStateOf<String?>(null) }
@@ -121,6 +132,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     LaunchedEffect(selectedStandingsLeague, standingsRefresh, hubSection) {
         if (hubSection == "Standings" &&
             (standingsLoadedLeague != selectedStandingsLeague || standingsLoadedRefresh != standingsRefresh)) {
+            standings = null
+            selectedStandingsConference = "All"
             standings = withContext(IO) { SportLogic.fetchStandings(selectedStandingsLeague) }
             standingsLoadedLeague = selectedStandingsLeague
             standingsLoadedRefresh = standingsRefresh
@@ -358,10 +371,11 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             }
                         }
                         val activeTeam = selectedTeam ?: teamCards.first().first
-                        val teamGames = scoreGames.filter { it.home == activeTeam || it.away == activeTeam }
+                        val teamGames = scoreGames.filter { it.home == activeTeam || it.away == activeTeam }.sortedBy { it.date }
                         val logo = teamCards.firstOrNull { it.first == activeTeam }?.second.orEmpty()
-                        val recent = teamGames.filter { it.state.equals("post", true) || it.status.contains("final", true) }
-                        val upcoming = teamGames.filterNot { it.state.equals("post", true) || it.status.contains("final", true) }
+                        val isFinal: (SportLogic.ScoreGame) -> Boolean = { it.state.equals("post", true) || it.status.contains("final", true) }
+                        val recent = teamGames.filter(isFinal).sortedByDescending { it.date }
+                        val upcoming = teamGames.filterNot(isFinal).sortedBy { it.date }
                         val wins = recent.count { game ->
                             val homeScore = game.homeScore.toIntOrNull() ?: 0
                             val awayScore = game.awayScore.toIntOrNull() ?: 0
@@ -375,7 +389,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 if (logo.isNotBlank()) AsyncImage(logo, null, Modifier.size(dpx(86)), contentScale = ContentScale.Fit)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                                     Text(activeTeam, color = Color.White, fontSize = spx(25), fontWeight = FontWeight.ExtraBold)
-                                    Text(teamGames.firstOrNull()?.league.orEmpty() + " · " + wins + "-" + losses, color = Muted, fontSize = 14.sp)
+                                    Text(teamGames.firstOrNull()?.league.orEmpty() + " · " + wins + "-" + losses + " · Full season", color = Muted, fontSize = 14.sp)
                                     Text("Recent form", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     Row(horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
                                         recent.take(5).forEach { game ->
@@ -427,13 +441,10 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4))) {
                         items(activeScoreLeagues, key = { "standings-" + it }) { league ->
-                            FilterPill(league, selectedStandingsLeague == league) { selectedStandingsLeague = league }
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(6)), verticalAlignment = Alignment.CenterVertically) {
-                        listOf("TEAM", "W", "L", "T", "PCT", "PF", "PA", "DIFF", "STRK").forEachIndexed { i, label ->
-                            Text(label, color = Accent2, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.weight(if (i == 0) 2.8f else .62f), maxLines = 1)
+                            FilterPill(league, selectedStandingsLeague == league) {
+                                selectedStandingsLeague = league
+                                selectedStandingsConference = "All"
+                            }
                         }
                     }
                     val table = standings
@@ -442,34 +453,63 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     } else if (table.rows.isEmpty()) {
                         Text("Standings are not currently available for ${selectedStandingsLeague}. Try refreshing later.", color = Muted)
                     } else {
-                        table.groups.forEach { group ->
-                            val groupRows = table.rows.filter { it.group == group }
-                            if (groupRows.isNotEmpty()) {
-                                Text(group, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold)
-                                groupRows.forEach { row ->
-                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
-                                        .background(DS.Overlay2).padding(horizontal = dpx(9), vertical = dpx(9)),
-                                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
-                                        Text(row.rank, color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(22)))
-                                        if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
-                                        Text(row.team, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(2.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        listOf(row.wins, row.losses, row.ties, row.pct, row.pointsFor, row.pointsAgainst, row.difference, row.streak).forEach { value ->
-                                            Text(value.ifBlank { "—" }, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.weight(.62f), maxLines = 1)
+                        val conferenceOptions = table.rows.map { it.conference }.filter { it.isNotBlank() }.distinct()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(if (selectedStandingsLeague.contains("College", true)) "Conference" else "Conference", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4))) {
+                            item(key = "standing-conf-all") { FilterPill("All", selectedStandingsConference == "All") { selectedStandingsConference = "All" } }
+                            items(conferenceOptions, key = { "standing-conf-" + it }) { conference ->
+                                FilterPill(conference, selectedStandingsConference == conference) { selectedStandingsConference = conference }
+                            }
+                        }
+                        val filteredRows = table.rows.filter { selectedStandingsConference == "All" || it.conference == selectedStandingsConference }
+                        LazyColumn(Modifier.fillMaxWidth().height(dpx(520)), verticalArrangement = Arrangement.spacedBy(dpx(5))) {
+                            item(key = "standing-columns") {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(5)), verticalAlignment = Alignment.CenterVertically) {
+                                    listOf("TEAM", "W", "L", "T", "PCT", "PF", "PA", "DIFF", "STRK").forEachIndexed { i, label ->
+                                        Text(label, color = Accent2, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                                            modifier = Modifier.weight(if (i == 0) 2.8f else .62f), maxLines = 1)
+                                    }
+                                }
+                            }
+                            table.groups.distinct().forEach { group ->
+                                val groupRows = filteredRows.filter { it.group == group }
+                                if (groupRows.isNotEmpty()) {
+                                    item(key = "standing-group-" + group) {
+                                        Text(group, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = dpx(7)))
+                                    }
+                                    items(groupRows, key = { "standing-row-" + it.team }) { row ->
+                                        var rowFocused by remember(row.team) { mutableStateOf(false) }
+                                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                            .background(if (rowFocused) Color(0xFF245B22) else DS.Overlay2)
+                                            .border(if (rowFocused) 2.dp else 1.dp, if (rowFocused) Color(0xFF9BE15D) else Color.Transparent, RoundedCornerShape(DS.RadiusS))
+                                            .onFocusChanged { rowFocused = it.isFocused }
+                                            .clickable { selectedStandingsConference = row.conference.ifBlank { "All" } }
+                                            .padding(horizontal = dpx(9), vertical = dpx(9)),
+                                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
+                                            Text(row.rank, color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(22)))
+                                            if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
+                                            Text(row.team, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.weight(2.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            listOf(row.wins, row.losses, row.ties, row.pct, row.pointsFor, row.pointsAgainst, row.difference, row.streak).forEach { value ->
+                                                Text(value.ifBlank { "—" }, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.weight(.62f), maxLines = 1)
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-                        val ungrouped = table.rows.filter { it.group.isBlank() }
-                        if (ungrouped.isNotEmpty()) ungrouped.forEach { row ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .padding(horizontal = dpx(12), vertical = dpx(10)), verticalAlignment = Alignment.CenterVertically) {
-                                Text(row.rank, color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
-                                if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
-                                Text(row.team, color = Color.White, modifier = Modifier.weight(1f))
-                                Text(row.record, color = Color.White, fontWeight = FontWeight.Bold)
+                            val ungrouped = filteredRows.filter { it.group.isBlank() }
+                            items(ungrouped, key = { "standing-ungrouped-" + it.team }) { row ->
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                    .clickable { }.padding(horizontal = dpx(12), vertical = dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(row.rank, color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
+                                    if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
+                                    Text(row.team, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(row.record, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }

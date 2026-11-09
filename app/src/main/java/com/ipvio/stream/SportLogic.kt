@@ -154,7 +154,8 @@ object SportLogic {
         val awayPeriodScores: List<String> = emptyList(), val homePeriodScores: List<String> = emptyList(),
         val awayRecord: String = "", val homeRecord: String = "",
         val awayTeamId: String = "", val homeTeamId: String = "",
-        val possessionTeamId: String = "", val footballPlay: String = "", val redZone: Boolean = false
+        val possessionTeamId: String = "", val footballPlay: String = "", val redZone: Boolean = false,
+        val date: String = ""
     )
 
     private data class ScoreFeed(val label: String, val path: String)
@@ -164,7 +165,7 @@ object SportLogic {
         val summary: String, val logo: String, val group: String,
         val wins: String = "", val losses: String = "", val ties: String = "",
         val pct: String = "", val pointsFor: String = "", val pointsAgainst: String = "",
-        val difference: String = "", val streak: String = ""
+        val difference: String = "", val streak: String = "", val conference: String = ""
     )
 
     data class StandingsTable(val league: String, val rows: List<StandingRow>, val groups: List<String>)
@@ -200,7 +201,7 @@ object SportLogic {
                 }
                 return ""
             }
-            fun addEntries(standings: org.json.JSONObject, group: String) {
+            fun addEntries(standings: org.json.JSONObject, group: String, conference: String) {
                 val entries = standings.optJSONArray("entries") ?: return
                 if (entries.length() == 0) return
                 if (group.isNotBlank() && group !in groups) groups.add(group)
@@ -235,14 +236,17 @@ object SportLogic {
                     val logo = team.optJSONArray("logos")?.optJSONObject(0)?.optString("href").orEmpty()
                         .ifBlank { team.optString("logo") }
                     rows.add(StandingRow(rank, name, record.ifBlank { "—" }, summaryParts.joinToString("  ·  "), logo, group,
-                        wins, losses, ties, pct, pf, pa, diff, streak))
+                        wins, losses, ties, pct, pf, pa, diff, streak, conference))
                 }
             }
-            fun walk(node: org.json.JSONObject, group: String = "") {
-                val label = node.optString("name").ifBlank { node.optString("abbreviation") }.ifBlank { group }
-                node.optJSONObject("standings")?.let { addEntries(it, label) }
+            fun walk(node: org.json.JSONObject, parent: String = "", conference: String = "", depth: Int = 0) {
+                val label = node.optString("name").ifBlank { node.optString("abbreviation") }.ifBlank { parent }
+                val currentConference = if (depth == 1) label else conference.ifBlank { label }
+                node.optJSONObject("standings")?.let { addEntries(it, label, currentConference) }
                 node.optJSONArray("children")?.let { children ->
-                    for (i in 0 until children.length()) children.optJSONObject(i)?.let { walk(it, label) }
+                    for (i in 0 until children.length()) children.optJSONObject(i)?.let {
+                        walk(it, label, currentConference, depth + 1)
+                    }
                 }
             }
             walk(root)
@@ -273,7 +277,10 @@ object SportLogic {
         ScoreFeed("Cricket", "cricket/icc")
     )
 
-    fun fetchScoreboards(enabledLeagues: Set<String> = SCORE_FEEDS.map { it.label }.toSet()): List<ScoreGame> {
+    fun fetchScoreboards(
+        enabledLeagues: Set<String> = SCORE_FEEDS.map { it.label }.toSet(),
+        fullSeason: Boolean = false
+    ): List<ScoreGame> {
         // Fetch leagues concurrently. Sequential 5-second timeouts meant later feeds (often NHL/soccer)
         // could succeed while NFL/NBA/MLB were never reached in time.
         val pool = java.util.concurrent.Executors.newFixedThreadPool(6)
@@ -283,7 +290,9 @@ object SportLogic {
                     val games = ArrayList<ScoreGame>()
                     var connection: java.net.HttpURLConnection? = null
                     try {
-                        val url = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/scoreboard?limit=100")
+                        val year = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
+                        val seasonQuery = if (fullSeason) "&dates=${year}0101-${year + 1}0630" else ""
+                        val url = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/scoreboard?limit=1000$seasonQuery")
                         connection = url.openConnection() as java.net.HttpURLConnection
                         connection.connectTimeout = 7000
                         connection.readTimeout = 7000
@@ -350,7 +359,8 @@ object SportLogic {
                                 redZone = situation.optBoolean("isRedZone", false),
                                 lastPlay = situation.optJSONObject("lastPlay")?.optString("text").orEmpty(),
                                 clock = event.optJSONObject("status")?.optString("displayClock").orEmpty(),
-                                period = event.optJSONObject("status")?.optString("period").orEmpty()
+                                period = event.optJSONObject("status")?.optString("period").orEmpty(),
+                                date = event.optString("date")
                             )
                         }
                     } catch (_: Exception) {
