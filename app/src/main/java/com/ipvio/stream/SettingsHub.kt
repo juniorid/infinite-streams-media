@@ -44,23 +44,23 @@ import androidx.compose.ui.input.key.type
 private class Cat(val icon: AIcon, val title: String, val sub: String)
 
 private val CATS = listOf(
-    Cat(AIcon.Gear, "Allgemein", "Start, Beenden, Autostart"),
-    Cat(AIcon.Globe, "Sprache & Region", "Sprache, Uhrzeit, Zeitzone"),
-    Cat(AIcon.Grid, "Ansicht", "Kartengröße, Seitenleiste, Raster"),
-    Cat(AIcon.Sparkle, "Design", "Farben, Schrift, Animationen"),
-    Cat(AIcon.Lists, "Menü", "Reihenfolge und Einträge"),
-    Cat(AIcon.Play, "Player", "Spulen, Intro, Qualität, defekte Links"),
-    Cat(AIcon.Music, "Ton & Untertitel", "Sprachen, CC, Untertitel-Stil"),
-    Cat(AIcon.Tag, "Genres & Kategorien", "Automatische Genres, Kategorien"),
-    Cat(AIcon.Live, "Live-TV & Guide", "TV-Programm, Senderlisten, Erinnerungen"),
-    Cat(AIcon.Download, "Playlists", "Verwalten, Sprachen, Aktualisieren"),
-    Cat(AIcon.Person, "Profile", "Verlauf, Favoriten, Jugendschutz je Person"),
-    Cat(AIcon.Star, "API-Schlüssel", "TMDB, IMDb und Rotten Tomatoes"),
-    Cat(AIcon.Lock, "Jugendschutz", "PIN, Inhalte ab 18"),
-    Cat(AIcon.Storage, "Speicher", "Cache, Verlauf, Fortsetzen"),
-    Cat(AIcon.Pulse, "Diagnose", "Status und Fehlersuche"),
-    Cat(AIcon.Info, "Über Infinite Streams Media", "Version, Quellen, Zurücksetzen"),
-    Cat(AIcon.HeartFilled, "Spende", "Unterstütze Infinite Streams Media")
+    Cat(AIcon.Gear, "General", "Startup, exit, auto-start"),
+    Cat(AIcon.Globe, "Language & Region", "Language, time, time zone"),
+    Cat(AIcon.Grid, "Appearance", "Card size, sidebar, grid"),
+    Cat(AIcon.Sparkle, "Design", "Colors, fonts, animations"),
+    Cat(AIcon.Lists, "Menu", "Order and items"),
+    Cat(AIcon.Play, "Player", "Seeking, intros, quality, broken links"),
+    Cat(AIcon.Music, "Audio & Subtitles", "Languages, closed captions, subtitle style"),
+    Cat(AIcon.Tag, "Genres & Categories", "Automatic genres, categories"),
+    Cat(AIcon.Live, "Live TV & Guide", "TV guide, channel lists, reminders"),
+    Cat(AIcon.Download, "Playlists", "Manage, languages, refresh"),
+    Cat(AIcon.Person, "Profiles", "History, favorites, parental controls"),
+    Cat(AIcon.Star, "API Keys", "TMDB, IMDb and Rotten Tomatoes"),
+    Cat(AIcon.Lock, "Parental Controls", "PIN, 18+ content"),
+    Cat(AIcon.Storage, "Storage", "Cache, history, continue watching"),
+    Cat(AIcon.Pulse, "Diagnostics", "Status and troubleshooting"),
+    Cat(AIcon.Info, "About Infinite Streams Media", "Version, credits, reset"),
+    Cat(AIcon.HeartFilled, "Donate", "Support Infinite Streams Media")
 )
 
 /** Direkt eine Seite der Einstellungen öffnen (z. B. Profil-Kreis oben bei nur einem Profil: Seite „Profile“). */
@@ -1140,7 +1140,7 @@ private fun ApiKeysPage(ctx: Context) {
 
 @Composable
 private fun AboutPage(ctx: Context) {
-    Text("Infinite Streams Media · Version " + BuildConfig.VERSION_NAME, color = Color.White, fontSize = 18.sp)
+    Text("Infinite Streams Media · Version " + appVersion(ctx), color = Color.White, fontSize = 18.sp)
     Hint("Infinite Streams Media is a media player and does not provide content. Use only sources you are authorized to access.")
     Hint("This product uses the TMDB API but is not endorsed or certified by TMDB. Ratings: OMDb. Intro timings: TheIntroDB.")
     Hint("Infinite Streams Media is free software under the GNU General Public License v3 (GPL-3.0). Libraries: AndroidX/Jetpack Compose, Media3 (Apache 2.0), OkHttp, Coil (Apache 2.0), Jellyfin FFmpeg decoder (GPL-3.0), Outfit and Inter fonts (SIL Open Font License).")
@@ -1163,27 +1163,27 @@ private fun AboutPage(ctx: Context) {
 /** App-Aktualisierung aus der App heraus: Standard ist die neueste Veröffentlichung auf GitHub. */
 @Composable
 private fun UpdateSection(ctx: Context) {
-    SectionTitle("App-Aktualisierung")
+    SectionTitle("App Updates")
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var auto by remember { mutableStateOf(AppUpdate.auto(ctx)) }
     val info = AppUpdate.available
     val scope = rememberCoroutineScope()
-    Text("Installiert: Version " + AppUpdate.currentName(ctx), color = Muted, fontSize = 16.sp)
-    ToggleRow("Automatisch nach Updates suchen", "Einmal am Tag. Ein neues Update erscheint in der Glocke oben rechts.", auto) { auto = it; AppUpdate.setAuto(ctx, it) }
+    Text("Installed version: " + AppUpdate.currentName(ctx), color = Muted, fontSize = 16.sp)
+    ToggleRow("Check for updates automatically", "Once a day. New updates appear in the notification bell.", auto) { auto = it; AppUpdate.setAuto(ctx, it) }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        PillButton(if (busy) "Bitte warten …" else "Jetzt nach Update suchen") {
+        PillButton(if (busy) "Please wait…" else "Check for updates now") {
             if (busy) return@PillButton
-            busy = true; status = "Suche …"
+            busy = true; status = "Checking…"
             scope.launch {
                 AppUpdate.check(ctx)
-                    .onSuccess { r -> status = if (r == null) "Du hast die neueste Version." else "Neu: Version ${r.name}" + (if (r.notes.isNotBlank()) " – " + r.notes else "") }
-                    .onFailure { status = it.message ?: "Fehler" }
+                    .onSuccess { r -> status = if (r == null) "You have the latest version." else "New version: ${r.name}" + (if (r.notes.isNotBlank()) " – " + r.notes else "") }
+                    .onFailure { status = it.message ?: "Error" }
                 busy = false
             }
         }
         info?.let { u ->
-            PillButton("Herunterladen und installieren") {
+            PillButton("Download and install") {
                 if (busy) return@PillButton
                 busy = true
                 scope.launch { AppUpdate.downloadAndInstall(ctx, u) { status = it }; busy = false }
@@ -1191,8 +1191,8 @@ private fun UpdateSection(ctx: Context) {
         }
     }
     if (status.isNotBlank()) Text(status, color = Muted, fontSize = 16.sp)
-    Hint("Updates kommen von der Projektseite auf GitHub. Deine Playlists, Favoriten, der Verlauf und die Einstellungen bleiben bei einem Update erhalten. Android fragt vor der Installation einmal nach.")
+    Hint("Updates come from the project page on GitHub. Your playlists, favorites, history and settings are kept when you update. Android will ask you to confirm installation.")
     var url by remember { mutableStateOf(AppUpdate.url(ctx).takeIf { it != AppUpdate.DEFAULT_URL }.orEmpty()) }
-    Field(url, { url = it; AppUpdate.setUrl(ctx, it) }, "Eigene Update-Adresse (leer = GitHub)")
+    Field(url, { url = it; AppUpdate.setUrl(ctx, it) }, "Custom update URL (blank = GitHub)")
 }
 
