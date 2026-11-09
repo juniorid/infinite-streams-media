@@ -152,7 +152,9 @@ object SportLogic {
         val homeLogo: String, val awayLogo: String, val status: String,
         val periodScores: String = "", val lastPlay: String = "", val clock: String = "", val period: String = "",
         val awayPeriodScores: List<String> = emptyList(), val homePeriodScores: List<String> = emptyList(),
-        val awayRecord: String = "", val homeRecord: String = ""
+        val awayRecord: String = "", val homeRecord: String = "",
+        val awayTeamId: String = "", val homeTeamId: String = "",
+        val possessionTeamId: String = "", val footballPlay: String = "", val redZone: Boolean = false
     )
 
     private data class ScoreFeed(val label: String, val path: String)
@@ -294,6 +296,21 @@ object SportLogic {
                             val awayTeam = away.optJSONObject("team") ?: org.json.JSONObject()
                             val statusObj = event.optJSONObject("status")?.optJSONObject("type") ?: org.json.JSONObject()
                             val status = statusObj.optString("description", statusObj.optString("name", "Scheduled"))
+                            val situation = comp.optJSONObject("situation") ?: org.json.JSONObject()
+                            val possessionId = situation.optString("possession")
+                            val down = situation.optInt("down", 0)
+                            val distance = situation.optInt("distance", 0)
+                            val yardLine = situation.optInt("yardLine", -1)
+                            val possessionTeam = when (possessionId) {
+                                homeTeam.optString("id") -> homeTeam.optString("abbreviation", homeTeam.optString("shortDisplayName", ""))
+                                awayTeam.optString("id") -> awayTeam.optString("abbreviation", awayTeam.optString("shortDisplayName", ""))
+                                else -> situation.optString("possessionText").substringBefore(" ").takeIf { it.isNotBlank() }.orEmpty()
+                            }
+                            val playDetail = situation.optString("shortDownDistanceText").takeIf { it.isNotBlank() && it != "null" }
+                                ?: if (down > 0 && distance > 0) "$down & $distance" else ""
+                            val fieldDetail = situation.optString("possessionText").takeIf { it.isNotBlank() && it != "null" }
+                                ?: if (yardLine >= 0 && possessionTeam.isNotBlank()) "$possessionTeam $yardLine" else ""
+                            val footballPlay = listOf(playDetail, fieldDetail).filter { it.isNotBlank() }.joinToString(" at ")
                             games += ScoreGame(
                                 id = event.optString("id"),
                                 league = feed.label,
@@ -316,7 +333,12 @@ object SportLogic {
                                 homePeriodScores = (0 until (home.optJSONArray("linescores")?.length() ?: 0)).mapNotNull { idx -> home.optJSONArray("linescores")?.optJSONObject(idx)?.optString("displayValue")?.takeIf { it.isNotBlank() } },
                                 awayRecord = away.optJSONArray("records")?.optJSONObject(0)?.optString("summary").orEmpty(),
                                 homeRecord = home.optJSONArray("records")?.optJSONObject(0)?.optString("summary").orEmpty(),
-                                lastPlay = comp.optJSONObject("situation")?.optJSONObject("lastPlay")?.optString("text").orEmpty(),
+                                awayTeamId = awayTeam.optString("id"),
+                                homeTeamId = homeTeam.optString("id"),
+                                possessionTeamId = possessionId,
+                                footballPlay = footballPlay,
+                                redZone = situation.optBoolean("isRedZone", false),
+                                lastPlay = situation.optJSONObject("lastPlay")?.optString("text").orEmpty(),
                                 clock = event.optJSONObject("status")?.optString("displayClock").orEmpty(),
                                 period = event.optJSONObject("status")?.optString("period").orEmpty()
                             )
