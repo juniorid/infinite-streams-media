@@ -215,8 +215,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     ) {
                         Text("EDIT LEAGUES", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .clickable { manageLeagues = true }.onFocusChanged { }
-                                .focusable().padding(horizontal = dpx(14), vertical = dpx(10)))
+                                .clickable { manageLeagues = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
                                 .clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
