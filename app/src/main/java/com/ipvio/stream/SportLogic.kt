@@ -263,12 +263,12 @@ object SportLogic {
         ScoreFeed("Cricket", "cricket/icc")
     )
 
-    fun fetchScoreboards(): List<ScoreGame> {
+    fun fetchScoreboards(enabledLeagues: Set<String> = SCORE_FEEDS.map { it.label }.toSet()): List<ScoreGame> {
         // Fetch leagues concurrently. Sequential 5-second timeouts meant later feeds (often NHL/soccer)
         // could succeed while NFL/NBA/MLB were never reached in time.
         val pool = java.util.concurrent.Executors.newFixedThreadPool(6)
         return try {
-            val tasks = SCORE_FEEDS.map { feed ->
+            val tasks = SCORE_FEEDS.filter { it.label in enabledLeagues }.map { feed ->
                 java.util.concurrent.Callable {
                     val games = ArrayList<ScoreGame>()
                     var connection: java.net.HttpURLConnection? = null
