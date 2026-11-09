@@ -1140,12 +1140,12 @@ private fun ApiKeysPage(ctx: Context) {
 
 @Composable
 private fun AboutPage(ctx: Context) {
-    Text("Infinite Streams Media · Version " + appVersion(ctx), color = Color.White, fontSize = 18.sp)
-    Hint("Infinite Streams Media ist ein Player und liefert selbst keine Inhalte. Nutze nur Quellen, für die du eine Berechtigung hast.")
-    Hint("Dieses Produkt verwendet die TMDB-API, wird aber nicht von TMDB unterstützt oder zertifiziert. Wertungen: OMDb. Intro-Zeiten: TheIntroDB.")
-    Hint("Infinite Streams Media ist freie Software unter der GNU General Public License v3 (GPL-3.0). Verwendete Bibliotheken: AndroidX/Jetpack Compose, Media3 (Apache 2.0), OkHttp, Coil (Apache 2.0), Jellyfin FFmpeg-Decoder (GPL-3.0), Schriften Outfit und Inter (SIL Open Font License).")
+    Text("Infinite Streams Media · Version " + BuildConfig.VERSION_NAME, color = Color.White, fontSize = 18.sp)
+    Hint("Infinite Streams Media is a media player and does not provide content. Use only sources you are authorized to access.")
+    Hint("This product uses the TMDB API but is not endorsed or certified by TMDB. Ratings: OMDb. Intro timings: TheIntroDB.")
+    Hint("Infinite Streams Media is free software under the GNU General Public License v3 (GPL-3.0). Libraries: AndroidX/Jetpack Compose, Media3 (Apache 2.0), OkHttp, Coil (Apache 2.0), Jellyfin FFmpeg decoder (GPL-3.0), Outfit and Inter fonts (SIL Open Font License).")
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        PillButton("Systemeinstellungen der App") {
+        PillButton("App system settings") {
             runCatching {
                 ctx.startActivity(
                     android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + ctx.packageName))
@@ -1155,9 +1155,9 @@ private fun AboutPage(ctx: Context) {
         }
     }
     UpdateSection(ctx)
-    SectionTitle("Zurücksetzen")
-    ConfirmPill("Alle Einstellungen zurücksetzen") { AppSettings.resetAll(ctx); General.resetAll(ctx) }
-    Hint("Setzt Ansicht, Design, Menü, Player, Ton und Start auf die Standardwerte. Playlists, Favoriten, Verlauf und Fortsetzen-Positionen bleiben erhalten. Zwischenspeicher leerst du unter „Speicher“.")
+    SectionTitle("Reset")
+    ConfirmPill("Reset all settings") { AppSettings.resetAll(ctx); General.resetAll(ctx) }
+    Hint("Resets view, design, menu, player, audio and startup preferences. Playlists, favorites, history and resume positions are kept. Clear cached data under Storage.")
 }
 
 /** App-Aktualisierung aus der App heraus: Standard ist die neueste Veröffentlichung auf GitHub. */
