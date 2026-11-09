@@ -161,7 +161,10 @@ object SportLogic {
 
     data class StandingRow(
         val rank: String, val team: String, val record: String,
-        val summary: String, val logo: String, val group: String
+        val summary: String, val logo: String, val group: String,
+        val wins: String = "", val losses: String = "", val ties: String = "",
+        val pct: String = "", val pointsFor: String = "", val pointsAgainst: String = "",
+        val difference: String = "", val streak: String = ""
     )
 
     data class StandingsTable(val league: String, val rows: List<StandingRow>, val groups: List<String>)
@@ -216,16 +219,23 @@ object SportLogic {
                     val rank = entry.optString("rank").ifBlank {
                         stat(entry, "playoffseed", "playoff seed", "rank", "position").ifBlank { (i + 1).toString() }
                     }
+                    val pct = stat(entry, "winpercent", "win pct", "percentage")
+                    val pf = stat(entry, "pointsfor", "points for")
+                    val pa = stat(entry, "pointsagainst", "points against")
+                    val streak = stat(entry, "streak")
+                    val diff = stat(entry, "pointdifferential", "point differential", "differential")
+                        .ifBlank { if (pf.isNotBlank() && pa.isNotBlank()) runCatching { (pf.toDouble() - pa.toDouble()).toInt().toString() }.getOrDefault("") else "" }
                     val summaryParts = listOf(
-                        stat(entry, "winpercent", "win pct", "percentage").takeIf { it.isNotBlank() }?.let { "Win% $it" },
+                        pct.takeIf { it.isNotBlank() }?.let { "Win% $it" },
                         stat(entry, "gamesbehind", "games behind").takeIf { it.isNotBlank() && it != "0" }?.let { "$it GB" },
-                        stat(entry, "pointsfor", "points for").takeIf { it.isNotBlank() }?.let { "PF $it" },
-                        stat(entry, "pointsagainst", "points against").takeIf { it.isNotBlank() }?.let { "PA $it" },
-                        stat(entry, "streak").takeIf { it.isNotBlank() }?.let { "Streak $it" }
+                        pf.takeIf { it.isNotBlank() }?.let { "PF $it" },
+                        pa.takeIf { it.isNotBlank() }?.let { "PA $it" },
+                        streak.takeIf { it.isNotBlank() }?.let { "Streak $it" }
                     ).filterNotNull()
                     val logo = team.optJSONArray("logos")?.optJSONObject(0)?.optString("href").orEmpty()
                         .ifBlank { team.optString("logo") }
-                    rows.add(StandingRow(rank, name, record.ifBlank { "—" }, summaryParts.joinToString("  ·  "), logo, group))
+                    rows.add(StandingRow(rank, name, record.ifBlank { "—" }, summaryParts.joinToString("  ·  "), logo, group,
+                        wins, losses, ties, pct, pf, pa, diff, streak))
                 }
             }
             fun walk(node: org.json.JSONObject, group: String = "") {

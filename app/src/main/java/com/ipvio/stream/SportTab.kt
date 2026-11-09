@@ -115,6 +115,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var selectedStandingsLeague by remember { mutableStateOf("NFL") }
     var standingsRefresh by remember { mutableIntStateOf(0) }
     var standings by remember { mutableStateOf<SportLogic.StandingsTable?>(null) }
+    var selectedTeam by remember { mutableStateOf<String?>(null) }
     var standingsLoadedLeague by remember { mutableStateOf<String?>(null) }
     var standingsLoadedRefresh by remember { mutableIntStateOf(-1) }
     LaunchedEffect(selectedStandingsLeague, standingsRefresh, hubSection) {
@@ -331,12 +332,83 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 .clickable { manageFollows = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
                     }
                     val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
-                    val featuredFollowed = followed.firstOrNull { it.state.equals("in", true) } ?: followed.firstOrNull()
-                    if (featuredFollowed != null) FeaturedGamePanel(featuredFollowed, channelsForGame(featuredFollowed).firstOrNull(), onOpen = { playScoreGame(featuredFollowed) })
-                    if (favoriteTeams.value.isEmpty()) Text("No teams followed yet. Select Manage follows to choose a league and team.", color = Muted)
-                    else if (followed.isEmpty()) Text("Your followed teams have no games listed right now.", color = Muted)
-                    else LazyColumn(verticalArrangement = Arrangement.spacedBy(dpx(10)), modifier = Modifier.height(dpx(360))) {
-                        items(followed, key = { "followed-" + it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
+                    val teamCards = remember(scoreGames, favoriteTeams.value) {
+                        scoreGames.flatMap { game -> listOf(
+                            Triple(game.home, game.homeLogo, game.league),
+                            Triple(game.away, game.awayLogo, game.league)
+                        ) }.filter { favoriteTeams.value.contains(it.first) }.distinctBy { it.first }
+                    }
+                    if (teamCards.isEmpty()) {
+                        Text("No teams followed yet. Select Manage follows to choose a league and team.", color = Muted)
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                            items(teamCards, key = { "team-logo-" + it.first }) { team ->
+                                var focused by remember(team.first) { mutableStateOf(false) }
+                                Column(Modifier.width(dpx(112)).clip(RoundedCornerShape(DS.RadiusM))
+                                    .background(if (focused || selectedTeam == team.first) Color(0xFF245B22) else DS.Overlay2)
+                                    .border(if (focused || selectedTeam == team.first) 3.dp else 1.dp,
+                                        if (focused || selectedTeam == team.first) Color(0xFF9BE15D) else Color(0x3376B947), RoundedCornerShape(DS.RadiusM))
+                                    .onFocusChanged { focused = it.isFocused }
+                                    .clickable { selectedTeam = team.first }.padding(dpx(10)),
+                                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(6))) {
+                                    if (team.second.isNotBlank()) AsyncImage(team.second, null, Modifier.size(dpx(58)), contentScale = ContentScale.Fit)
+                                    else Box(Modifier.size(dpx(58)), contentAlignment = Alignment.Center) { Text(team.first.take(3), color = Color.White, fontWeight = FontWeight.Bold) }
+                                    Text(team.first, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                        val activeTeam = selectedTeam ?: teamCards.first().first
+                        val teamGames = scoreGames.filter { it.home == activeTeam || it.away == activeTeam }
+                        val logo = teamCards.firstOrNull { it.first == activeTeam }?.second.orEmpty()
+                        val recent = teamGames.filter { it.state.equals("post", true) || it.status.contains("final", true) }
+                        val upcoming = teamGames.filterNot { it.state.equals("post", true) || it.status.contains("final", true) }
+                        val wins = recent.count { game -> (game.home == activeTeam && game.homeScore.toIntOrNull() ?: 0) > (game.awayScore.toIntOrNull() ?: 0) ||
+                            (game.away == activeTeam && (game.awayScore.toIntOrNull() ?: 0) > (game.homeScore.toIntOrNull() ?: 0)) }
+                        val losses = recent.size - wins
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xCC17243D)).padding(dpx(16)),
+                            verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
+                                if (logo.isNotBlank()) AsyncImage(logo, null, Modifier.size(dpx(86)), contentScale = ContentScale.Fit)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+                                    Text(activeTeam, color = Color.White, fontSize = spx(25), fontWeight = FontWeight.ExtraBold)
+                                    Text(teamGames.firstOrNull()?.league.orEmpty() + " · " + wins + "-" + losses, color = Muted, fontSize = 14.sp)
+                                    Text("Recent form", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
+                                        recent.take(5).forEach { game ->
+                                            val won = if (game.home == activeTeam) (game.homeScore.toIntOrNull() ?: 0) > (game.awayScore.toIntOrNull() ?: 0)
+                                                else (game.awayScore.toIntOrNull() ?: 0) > (game.homeScore.toIntOrNull() ?: 0)
+                                            Box(Modifier.size(dpx(27)).clip(RoundedCornerShape(50)).background(if (won) Color(0xFF00A6D6) else Color(0xFFE35C76)), contentAlignment = Alignment.Center) {
+                                                Text(if (won) "W" else "L", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Text("Upcoming", color = Accent2, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            if (upcoming.isEmpty()) Text("No upcoming games are currently listed.", color = Muted)
+                            upcoming.take(6).forEach { game ->
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                    .clickable { playScoreGame(game) }.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                    val opponent = if (game.home == activeTeam) game.away else game.home
+                                    val oppLogo = if (game.home == activeTeam) game.awayLogo else game.homeLogo
+                                    if (oppLogo.isNotBlank()) AsyncImage(oppLogo, null, Modifier.size(dpx(34)), contentScale = ContentScale.Fit)
+                                    Text((if (game.home == activeTeam) "vs " else "at ") + opponent, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(game.status.ifBlank { game.detail }, color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                            Text("Results", color = Accent2, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                            recent.take(8).forEach { game ->
+                                val opponent = if (game.home == activeTeam) game.away else game.home
+                                val won = if (game.home == activeTeam) (game.homeScore.toIntOrNull() ?: 0) > (game.awayScore.toIntOrNull() ?: 0)
+                                    else (game.awayScore.toIntOrNull() ?: 0) > (game.homeScore.toIntOrNull() ?: 0)
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                    .clickable { playScoreGame(game) }.padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(opponent, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(game.awayScore + " - " + game.homeScore, color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(if (won) "W" else "L", color = if (won) Color(0xFF00B9E8) else Color(0xFFE35C76), fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = dpx(12)))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -354,7 +426,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             FilterPill(league, selectedStandingsLeague == league) { selectedStandingsLeague = league }
                         }
                     }
-                    Text(selectedStandingsLeague, color = Accent2, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(6)), verticalAlignment = Alignment.CenterVertically) {
+                        listOf("TEAM", "W", "L", "T", "PCT", "PF", "PA", "DIFF", "STRK").forEachIndexed { i, label ->
+                            Text(label, color = Accent2, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.weight(if (i == 0) 2.8f else .62f), maxLines = 1)
+                        }
+                    }
                     val table = standings
                     if (table == null) {
                         Text("Loading ${selectedStandingsLeague} standings…", color = Muted)
@@ -367,16 +444,16 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 Text(group, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold)
                                 groupRows.forEach { row ->
                                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
-                                        .background(DS.Overlay2).padding(horizontal = dpx(12), vertical = dpx(10)),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-                                        Text(row.rank, color = Accent2, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
+                                        .background(DS.Overlay2).padding(horizontal = dpx(9), vertical = dpx(9)),
+                                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(5))) {
+                                        Text(row.rank, color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(22)))
                                         if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
-                                            Text(row.team, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            if (row.summary.isNotBlank()) Text(row.summary, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(row.team, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.weight(2.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        listOf(row.wins, row.losses, row.ties, row.pct, row.pointsFor, row.pointsAgainst, row.difference, row.streak).forEach { value ->
+                                            Text(value.ifBlank { "—" }, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.weight(.62f), maxLines = 1)
                                         }
-                                        Text(row.record, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -445,18 +522,29 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(dpx(10))) {
                     Text("Edit sports leagues", color = Color.White, fontSize = spx(21), fontWeight = FontWeight.Bold)
                     Text("Choose which leagues appear in Scores, My Teams, and Standings.", color = Muted, fontSize = 13.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                        Text("Select all", color = Accent2, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                        var selectAllFocused by remember { mutableStateOf(false) }
+                        var clearAllFocused by remember { mutableStateOf(false) }
+                        Box(Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(if (selectAllFocused) Color(0xFF245B22) else DS.Overlay3)
+                            .border(if (selectAllFocused) 3.dp else 1.dp, if (selectAllFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
+                            .onFocusChanged { selectAllFocused = it.isFocused }.clickable {
                                 enabledLeagues.value = scoreLeagues.toSet()
                                 context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toMutableSet()).apply()
-                            }.padding(vertical = dpx(8)))
-                        Text("Clear all", color = Accent2, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
+                                selectedScoreLeague = "All"
+                            }.focusable().padding(horizontal = dpx(18), vertical = dpx(12))) {
+                            Text("SELECT ALL", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Box(Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(if (clearAllFocused) Color(0xFF245B22) else DS.Overlay3)
+                            .border(if (clearAllFocused) 3.dp else 1.dp, if (clearAllFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
+                            .onFocusChanged { clearAllFocused = it.isFocused }.clickable {
                                 enabledLeagues.value = emptySet()
                                 context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", mutableSetOf<String>()).apply()
                                 selectedScoreLeague = "All"
-                            }.padding(vertical = dpx(8)))
+                                selectedStandingsLeague = "NFL"
+                                selectedFollowLeague = "NFL"
+                            }.focusable().padding(horizontal = dpx(18), vertical = dpx(12))) {
+                            Text("CLEAR ALL", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                     LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                         items(scoreLeagues, key = { "edit-league-" + it }) { league ->
