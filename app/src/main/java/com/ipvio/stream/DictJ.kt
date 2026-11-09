@@ -134,7 +134,7 @@ Die App ist für den Fernseher gebaut und wirkt quer am besten. Aus: dreht mit d
 Oder mit der Handy-Kamera scannen¦Or scan with your phone camera¦Veya telefon kamerasıyla tarayın¦Ili skeniraj kamerom telefona¦Ili skeniraj kamerom mobitela¦Ili skeniraj kamerom telefona¦O escanea con la cámara del móvil¦Ou scanner avec l’appareil photo du téléphone¦Oppure scansiona con la fotocamera del telefono
 QR-Code scannen¦Scan QR code¦QR kodunu tara¦Skeniraj QR kod¦Skeniraj QR kod¦Skeniraj QR kod¦Escanear código QR¦Scanner le code QR¦Scansiona il codice QR
 # Spende (Runde 21)
-Unterstütze IPVIO Stream¦Support IPVIO Stream¦IPVIO Stream’i destekle¦Podrži IPVIO Stream¦Podrži IPVIO Stream¦Podrži IPVIO Stream¦Apoya IPVIO Stream¦Soutenir IPVIO Stream¦Sostieni IPVIO Stream
+Support Infinite Streams Media¦Support Infinite Streams Media¦IPVIO Stream’i destekle¦Podrži IPVIO Stream¦Podrži IPVIO Stream¦Podrži IPVIO Stream¦Apoya IPVIO Stream¦Soutenir IPVIO Stream¦Sostieni IPVIO Stream
 Raster & Ansicht¦Grid & view¦Izgara ve görünüm¦Mreža i prikaz¦Mreža i prikaz¦Mreža i prikaz¦Cuadrícula y vista¦Grille et affichage¦Griglia e vista
 American Football¦American football¦Amerikan futbolu¦Američki fudbal¦Američki nogomet¦Američki fudbal¦Fútbol americano¦Football américain¦Football americano
 Basketball¦Basketball¦Basketbol¦Košarka¦Košarka¦Košarka¦Baloncesto¦Basket-ball¦Pallacanestro
