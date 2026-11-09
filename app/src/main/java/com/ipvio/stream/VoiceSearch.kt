@@ -16,7 +16,6 @@ object VoiceSearch {
         .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Lang.locale().toLanguageTag())
         .putExtra(RecognizerIntent.EXTRA_PROMPT, Lang.tr("Speak a movie, series or channel name"))
         .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
     /** Some Android TV builds expose voice search via WEB_SEARCH rather than RECOGNIZE_SPEECH. */
     fun fallbackIntent(): Intent = Intent(RecognizerIntent.ACTION_WEB_SEARCH)
