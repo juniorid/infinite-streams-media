@@ -154,10 +154,12 @@ fun SettingsHub(onAdd: () -> Unit, reload: () -> Unit) {
     }
 }
 
-/** Farbe je Bereich: gleicher Aufbau wie die Kacheln der Startseite (Farbverlauf, Symbol in der Bereichsfarbe, Pfeil). */
+/** Infinite Streams brand palette: deep black/green tile surfaces with alternating yellow and green accents. */
 private fun catColors(i: Int): Triple<Color, Color, Color> {
-    val h = (i * 360f / CATS.size + 18f) % 360f
-    return Triple(Color.hsv(h, 0.62f, 0.34f), Color.hsv(h, 0.70f, 0.14f), Color.hsv(h, 0.45f, 1f))
+    val surfaceStart = Color(0xFF101510)
+    val surfaceEnd = if (i % 2 == 0) Color(0xFF1B2B1B) else Color(0xFF172318)
+    val accent = if (i % 2 == 0) Color(0xFFFFD400) else Color(0xFF79C943)
+    return Triple(surfaceStart, surfaceEnd, accent)
 }
 
 @Composable
