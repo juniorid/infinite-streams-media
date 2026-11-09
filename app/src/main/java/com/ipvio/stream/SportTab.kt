@@ -126,7 +126,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             channel.title.contains("FOX One", true) || channel.group.contains("FOX One", true) ||
                 channel.title.contains("ESPN", true) || channel.group.contains("ESPN", true)
         }
+        // Keep radio/audio-only feeds available, but place them after video feeds.
         return (sportMatches + generalFallbacks).distinctBy { it.id }
+            .sortedBy { channel ->
+                Regex("\\b(radio|audio[- ]?only|commentary[- ]?only)\\b", RegexOption.IGNORE_CASE)
+                    .containsMatchIn(channel.title + " " + channel.group)
+            }
     }
     fun playScoreGame(game: SportLogic.ScoreGame) {
         val choices = channelsForGame(game)
