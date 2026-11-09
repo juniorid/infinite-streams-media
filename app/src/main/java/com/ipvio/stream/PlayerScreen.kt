@@ -1320,7 +1320,12 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             },
                             horizontalArrangement = Arrangement.spacedBy(PT.BtnGap), verticalAlignment = Alignment.CenterVertically
                         ) {
-                            PRoundButton(Modifier.focusRequester(liveFirst), label = "Senderliste", onLabel = setLabel, onClick = { openChannels() }) {
+                            PRoundButton(Modifier.focusRequester(liveFirst), label = if (playing) "Pause" else "Abspielen", onLabel = setLabel, onClick = {
+                                togglePlay(); controls = true
+                            }) {
+                                PlayerIcon(if (playing) PIcon.Pause else PIcon.Play, it, size = 28.dp)
+                            }
+                            PRoundButton(label = "Senderliste", onLabel = setLabel, onClick = { openChannels() }) {
                                 PlayerIcon(PIcon.Channels, it)
                             }
                             PRoundButton(label = "TV-Guide", onLabel = setLabel, onClick = { controls = false; showGuide = true }) {
