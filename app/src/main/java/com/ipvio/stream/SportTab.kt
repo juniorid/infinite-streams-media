@@ -80,17 +80,15 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val allNow = slots?.first.orEmpty()
     val allSoon = slots?.second.orEmpty()
-    var scoreRefresh by remember { mutableIntStateOf(0) }
-    // Avoid background score requests while the user is in another hub section.
-    val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, hubSection) {
-        if (hubSection == "Scores" || hubSection == "My teams") {
-            value = withContext(IO) { SportLogic.fetchScoreboards() }
-        }
-    }
     val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
     val enabledLeagues = remember(context) {
         mutableStateOf(context.getSharedPreferences("sports_hub", 0)
             .getStringSet("enabled_leagues", scoreLeagues.toMutableSet())?.toSet() ?: scoreLeagues.toSet())
+    }
+    var scoreRefresh by remember { mutableIntStateOf(0) }
+    // Load only leagues the user enabled. Keep results cached when navigating between hub sections.
+    val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, enabledLeagues.value) {
+        value = withContext(IO) { SportLogic.fetchScoreboards(enabledLeagues.value) }
     }
     val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
     var manageLeagues by remember { mutableStateOf(false) }
