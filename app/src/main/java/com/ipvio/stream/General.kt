@@ -30,7 +30,7 @@ object General {
     var refreshDow by mutableIntStateOf(java.util.Calendar.MONDAY)
     var lastRefresh by mutableStateOf(0L)
     /** Sprache: "" = Gerät, sonst Code aus Lang.CODES */
-    var lang by mutableStateOf("")
+    var lang by mutableStateOf("en")
     /** Zeitzone: "" = Systemzeit des Geräts */
     var tzId by mutableStateOf("")
     /** Zeitformat: 0 = System, 1 = 24 Stunden, 2 = 12 Stunden */
@@ -112,7 +112,7 @@ object General {
         refreshMinute = p.getInt("refresh_minute", 0).coerceIn(0, 59)
         refreshDow = p.getInt("refresh_dow", java.util.Calendar.MONDAY).coerceIn(1, 7)
         lastRefresh = p.getLong("last_refresh", 0L)
-        lang = p.getString("lang", "") ?: ""
+        lang = (p.getString("lang", "en") ?: "en").ifBlank { "en" }
         tzId = p.getString("tz_id", "") ?: ""
         timeFmt = p.getInt("time_fmt", 0).coerceIn(0, 2)
         sys24 = android.text.format.DateFormat.is24HourFormat(c)
