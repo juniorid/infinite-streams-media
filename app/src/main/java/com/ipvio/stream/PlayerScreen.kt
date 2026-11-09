@@ -1113,7 +1113,10 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 detectTapGestures(
                     onTap = {
                         interact = System.currentTimeMillis()
-                        if (panel == Panel.NONE && !showChannels && !showGuide) controls = !controls
+                        if (panel == Panel.NONE && !showChannels && !showGuide) {
+                            togglePlay()
+                            controls = true
+                        }
                     },
                     onDoubleTap = { o ->
                         interact = System.currentTimeMillis()
