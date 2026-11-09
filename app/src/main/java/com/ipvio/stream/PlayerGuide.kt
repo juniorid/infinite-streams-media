@@ -655,7 +655,7 @@ private fun GuideRow(
                                     true
                                 } else false
                             }
-                            .onFocusChanged { bf = it.isFocused; if (it.isFocused) { onBlock(true, cellReq); onInfo(e); onShift(e) } }
+                            .onFocusChanged { bf = it.isFocused; if (it.isFocused) { onBlock(true, cellReq); onInfo(e) } }
                             // Spätere Sendung: OK setzt/löscht die Erinnerung (Runde 14: ohne Auswahlfenster);
                             // im Archiv: Sendung abspielen; sonst Sender ansehen
                             .clickable {
