@@ -296,9 +296,13 @@ fun LiveTab(liveAll: List<Item>, groupsAll: Map<String, List<Item>>, favsAll: Li
                     }
                 }
             }
-            // Rechts: was auf dem markierten Sender läuft
-            Box(Modifier.weight(1.1f).fillMaxHeight().padding(start = dpx(30), end = dpx(60), top = dpx(150))) {
-                LiveNowPanel(focusedCh ?: list.firstOrNull())
+            // Rechts: Live-Video-Vorschau und Programminformationen des markierten Senders
+            Column(
+                Modifier.weight(1.1f).fillMaxHeight().padding(start = dpx(30), end = dpx(60), top = dpx(28), bottom = dpx(28)),
+                verticalArrangement = Arrangement.spacedBy(dpx(22))
+            ) {
+                LivePreviewWindow(focusedCh ?: list.firstOrNull())
+                LiveNowPanel(focusedCh ?: list.firstOrNull(), Modifier.weight(1f))
             }
         }
         ask?.let { a -> NameDialog(a.title, a.initial, onDismiss = { ask = null }) { a.onSave(it); ask = null } }
@@ -337,7 +341,8 @@ private fun CatRow(
     val shape = RoundedCornerShape(DS.RadiusS)
     Row(
         modifier.fillMaxWidth().clip(shape)
-            .background(if (f) Color(0x33FFFFFF) else if (selected) Accent1.copy(alpha = 0.16f) else Color.Transparent)
+            .background(if (f) Accent1.copy(alpha = 0.24f) else if (selected) Accent1.copy(alpha = 0.13f) else Color.Transparent)
+            .border(2.dp, if (f) Accent1 else if (selected) Accent1.copy(alpha = 0.55f) else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
             .onPreviewKeyEvent { e ->
                 if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionRight && e.nativeKeyEvent.repeatCount == 0) { onRight(); true } else false
@@ -374,9 +379,14 @@ private fun ChannelLine(item: Item, modifier: Modifier, inList: ChList?, onNewLi
             .graphicsLayer { scaleX = sc; scaleY = sc; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f) }
             .then(if (f) Modifier.shadow(18.dp, shape, ambientColor = Tok.Lift, spotColor = Tok.Lift) else Modifier)
             .clip(shape)
-            .background(if (f) Color(0x29FFFFFF) else Color(0x0AFFFFFF))
-            .border(1.dp, if (f) Color(0x40FFFFFF) else Color.Transparent, shape)
+            .background(if (f) Accent1.copy(alpha = 0.20f) else Color(0x0AFFFFFF))
+            .border(2.dp, if (f) Accent1 else Color.Transparent, shape)
             .onFocusChanged { f = it.isFocused; if (it.isFocused) onFocus() }
+            .onPreviewKeyEvent { ev ->
+                if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft && ev.nativeKeyEvent.repeatCount == 0) {
+                    runCatching { ContentFocus.req.requestFocus() }.isSuccess
+                } else false
+            }
             .menuKeys(onMenu = { menu = true }, onLong = { menu = true })
             .clickable(onClick = onClick)
             .padding(12.dp),
