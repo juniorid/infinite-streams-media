@@ -337,7 +337,7 @@ private fun AppContent() {
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Bg)) {
+    BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().background(Bg)) {
         // Maßstab des Entwurfs aus der verfügbaren Breite (siehe Design)
         val dk = maxWidth.value / Design.WIDTH
         SideEffect { if (Design.k != dk) Design.k = dk }
