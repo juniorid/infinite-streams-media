@@ -68,17 +68,18 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     SideEffect { ContentFocus.tab = MenuLogic.SPORT }
     val channels = remember(live) { live.filter { SportLogic.isSportChannel(it) } }
     val context = LocalContext.current
-    // Programm neu einordnen: beim Öffnen, wenn der TV-Guide fertig ist, und jede Minute
+    // EPG scan is expensive on large IPTV lists: refresh every 5 minutes and only while Scores is visible.
     var tick by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) { while (true) { delay(60_000); tick++ } }
-    val slots by produceState<Pair<List<SportLogic.Slot>, List<SportLogic.Slot>>?>(null, live, tick, Xmltv.channelCount) {
-        value = withContext(Dispatchers.Default) {
-            SportLogic.slots(live, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000, 48 * 3600L, 600)
+    LaunchedEffect(Unit) { while (true) { delay(300_000); tick++ } }
+    var hubSection by remember { mutableStateOf("Scores") }
+    val sportsInput = remember(channels) { channels }
+    val slots by produceState<Pair<List<SportLogic.Slot>, List<SportLogic.Slot>>?>(null, sportsInput, tick, Xmltv.channelCount, hubSection) {
+        if (hubSection == "Scores") value = withContext(Dispatchers.Default) {
+            SportLogic.slots(sportsInput, { Xmltv.forChannel(it.tvgId) }, System.currentTimeMillis() / 1000, 48 * 3600L, 300)
         }
     }
     val allNow = slots?.first.orEmpty()
     val allSoon = slots?.second.orEmpty()
-    var hubSection by remember { mutableStateOf("Scores") }
     var scoreRefresh by remember { mutableIntStateOf(0) }
     // Avoid background score requests while the user is in another hub section.
     val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, hubSection) {
@@ -195,10 +196,11 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             var tabFocused by remember(label) { mutableStateOf(false) }
                             Column(
                                 Modifier.clip(RoundedCornerShape(DS.RadiusS))
-                                    .background(if (tabFocused || hubSection == label) Color(0xFF245B22) else Color.Transparent)
-                                    .border(if (tabFocused) 2.dp else 1.dp, if (tabFocused) Color(0xFF9BE15D) else Color.Transparent, RoundedCornerShape(DS.RadiusS))
-                                    .clickable { hubSection = label; if (label == "Multi-View") showMultiViewFullscreen = true }
+                                    .background(if (tabFocused || hubSection == label) Color(0xFF245B22) else Color(0xFF202A24))
+                                    .border(if (tabFocused) 3.dp else 1.dp, if (tabFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
+                                    .focusable()
                                     .onFocusChanged { tabFocused = it.isFocused }
+                                    .clickable { hubSection = label; if (label == "Multi-View") showMultiViewFullscreen = true }
                                     .padding(horizontal = dpx(14), vertical = dpx(9)),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(dpx(4))
@@ -215,12 +217,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     ) {
                         Text("EDIT LEAGUES", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .clickable { manageLeagues = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                                .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(DS.RadiusS)).focusable().clickable { manageLeagues = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
-                                .clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                                .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(50)).focusable().clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
-                            .clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
+                            .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(50)).focusable().clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                         Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
@@ -707,9 +709,10 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
     Column(
         Modifier.width(dpx(300)).clip(shape)
             .background(if (focused) Color(0xFF245B22) else Color(0x1AFFFFFF))
-            .border(if (focused) 2.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x1AFFFFFF), shape)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .border(if (focused) 3.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x1AFFFFFF), shape)
+            .focusable()
             .onFocusChanged { focused = it.isFocused }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(dpx(14)),
         verticalArrangement = Arrangement.spacedBy(dpx(10))
     ) {
