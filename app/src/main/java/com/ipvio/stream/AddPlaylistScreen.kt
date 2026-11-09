@@ -109,7 +109,7 @@ fun AddPlaylistScreen(onDone: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 BrandMark(Modifier.size(48.dp))
-                Text("IPVIO", color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Infinite Streams Media", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
             }
             Text("Playlist hinzufügen", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -181,7 +181,7 @@ private fun PhoneCard(modifier: Modifier, address: String?, code: String) {
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(DS.RadiusM)).background(Bg).padding(horizontal = 18.dp, vertical = 12.dp)
                 ) {
-                    Text(address, color = Accent2, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, raw = true)
+                    Text(address, color = Accent2, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, raw = true)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     QrImage(address, 130.dp)
