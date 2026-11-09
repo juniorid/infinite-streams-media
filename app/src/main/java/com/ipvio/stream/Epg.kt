@@ -164,7 +164,7 @@ object Xmltv {
                     }
                     val pd = if (ch != null) past[ch] ?: 0 else 0
                     if (ch != null && ch in wanted && s != null && e != null &&
-                        e > now - (if (pd > 0) pd * 86400L else 3600L) && s < now + 129600 && epgSane(s, e)
+                        e > now - (if (pd > 0) pd * 86400L else 12 * 3600L) && s < now + 129600 && epgSane(s, e)
                     ) {
                         val l = out.getOrPut(ch) { ArrayList() }
                         if (l.size < MAX_PER_CHANNEL + pd * 48) l.add(EpgEntry(pool.of(title), shortDesc(desc), s, e))

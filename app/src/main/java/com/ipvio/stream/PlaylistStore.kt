@@ -337,7 +337,8 @@ object PlaylistStore {
         val m = XTREAM.find(url) ?: return emptyMap()
         val base = "${m.groupValues[1]}/player_api.php?username=${m.groupValues[2]}&password=${m.groupValues[3]}&action="
         val out = LinkedHashMap<String, Int>()
-        for (act in listOf("get_vod_categories", "get_series_categories", "get_live_categories")) {
+        val categoryActions = listOf("VOD" to "get_vod_categories", "SERIES" to "get_series_categories", "LIVE" to "get_live_categories")
+        for ((kind, act) in categoryActions) {
             try {
                 val body = client.newCall(Request.Builder().url(base + act).build()).execute().use { r ->
                     if (r.isSuccessful) r.body?.string() else null
@@ -345,7 +346,10 @@ object PlaylistStore {
                 val a = JSONArray(body)
                 for (i in 0 until a.length()) {
                     val n = a.getJSONObject(i).optString("category_name")
-                    if (n.isNotBlank() && !out.containsKey(n)) out[n] = i
+                    if (n.isNotBlank()) {
+                        out["$kind|$n"] = i
+                        if (!out.containsKey(n)) out[n] = i
+                    }
                 }
             } catch (e: Exception) {
             }

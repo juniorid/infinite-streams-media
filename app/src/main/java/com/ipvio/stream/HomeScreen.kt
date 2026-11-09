@@ -86,7 +86,13 @@ private fun providerGroups(list: List<Item>): Map<String, List<Item>> {
     val g = list.groupBy { it.group }
     val order = PlaylistStore.catOrder
     if (order.isEmpty()) return g
-    return g.entries.sortedBy { order[it.key] ?: 1_000_000 }.associate { it.key to it.value }
+    val kindKey = when (list.firstOrNull()?.kind) {
+        Kind.LIVE -> "LIVE"
+        Kind.MOVIE -> "VOD"
+        Kind.SERIES -> "SERIES"
+        else -> ""
+    }
+    return g.entries.sortedBy { order["$kindKey|${it.key}"] ?: order[it.key] ?: 1_000_000 }.associate { it.key to it.value }
 }
 
 /**

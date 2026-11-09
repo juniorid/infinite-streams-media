@@ -13,7 +13,7 @@ object EpgFull {
         val nowSec = nowMs / 1000
         cache[item.id]?.let { if (nowMs - it.first < 600_000) return it.second }
         val days = Catchup.of(item)?.days ?: 0
-        val from = if (days > 0) nowSec - days * 86400L else nowSec - 3600
+        val from = if (days > 0) nowSec - days * 86400L else nowSec - 12 * 3600L
         val local = Xmltv.forChannel(item.tvgId).filter { it.end > from }
         // Mit Archiv reicht XMLTV nur, wenn es auch vergangene Sendungen enthält
         val localOk = local.size >= 3 && local.any { it.end > nowSec } && (days == 0 || local.first().start <= nowSec - 6 * 3600)

@@ -345,7 +345,11 @@ fun Guide(
                                 t += 1800
                             }
                             val nx = (nowSec - winStart) / 60f * dpm
-                            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = (nx - 3f).dp).size(6.dp).clip(RoundedCornerShape(50)).background(Accent2).align(Alignment.BottomStart))
+                            if (nx > 0f && nx < viewMin * dpm) {
+                                Box(Modifier.offset(x = (nx - 1f).dp).width(2.dp).fillMaxHeight().background(Accent2).align(Alignment.CenterStart))
+                                Text("NOW", color = Accent2, fontSize = 9.sp, fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.offset(x = (nx + 4f).dp).align(Alignment.TopStart))
+                            }
                         }
                     }
                     if (shown.isEmpty()) Text("Keine Sender", color = Muted, fontSize = 15.sp, modifier = Modifier.padding(16.dp))
@@ -407,7 +411,9 @@ fun guideCategories(list: List<Item>, all: List<Item>): List<GuideCat> {
     for (it in all) groups.getOrPut(it.group) { ArrayList() }.add(it)
     // Xtream category ordering is supplied by the playlist metadata; retain playlist encounter order as fallback.
     val orderedGroups = if (PlaylistStore.catOrder.isNotEmpty()) {
-        groups.entries.sortedWith(compareBy<Map.Entry<String, ArrayList<Item>>> { PlaylistStore.catOrder[it.key] ?: Int.MAX_VALUE })
+        groups.entries.sortedWith(compareBy<Map.Entry<String, ArrayList<Item>>> {
+            PlaylistStore.catOrder["LIVE|${it.key}"] ?: PlaylistStore.catOrder[it.key] ?: Int.MAX_VALUE
+        })
     } else groups.entries.toList()
     if (orderedGroups.size > 1) for ((g, l) in orderedGroups) out.add(GuideCat(g, l, null))
     return out
@@ -672,7 +678,7 @@ private fun GuideRow(
                 }
             }
             val nx = (nowSec - winStart) / 60f * dpm
-            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = nx.dp).width(2.dp).fillMaxHeight().background(Accent2.copy(alpha = 0.8f)))
+            if (nx > 0f && nx < viewMin * dpm) Box(Modifier.offset(x = nx.dp).width(3.dp).fillMaxHeight().background(Accent2).zIndex(5f))
         }
     }
 }

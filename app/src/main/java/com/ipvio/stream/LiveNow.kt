@@ -40,6 +40,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -48,6 +50,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.aspectRatio
 
@@ -128,13 +131,16 @@ fun LiveNowPanel(ch: Item?, modifier: Modifier = Modifier) {
 @Composable
 fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
+    var previewStatus by remember(ch?.id, ch?.url) { mutableStateOf("Connecting to stream…") }
     val player = remember(ch?.id, ch?.url) {
         val http = DefaultHttpDataSource.Factory()
+            .setUserAgent(LiveTaps.UA)
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(10_000)
             .setReadTimeoutMs(15_000)
         ExoPlayer.Builder(ctx, SoftAudio.factory(ctx))
             .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(5_000, 15_000, 1_000, 3_000).build())
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .setMediaSourceFactory(DefaultMediaSourceFactory(ctx).setDataSourceFactory(TapAwareDataSource.Factory(DefaultDataSource.Factory(ctx, http))))
             .build().apply {
                 volume = 0f
@@ -152,7 +158,26 @@ fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
             player.clearMediaItems()
         }
     }
-    DisposableEffect(player) { onDispose { player.release() } }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                previewStatus = when (playbackState) {
+                    Player.STATE_BUFFERING -> "Buffering live stream…"
+                    Player.STATE_READY -> ""
+                    Player.STATE_ENDED -> "Stream ended"
+                    else -> "Waiting for stream…"
+                }
+            }
+            override fun onPlayerError(error: PlaybackException) {
+                previewStatus = "Preview error: " + error.errorCodeName
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
     val shape = RoundedCornerShape(dpx(18))
     Box(
         modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape)
@@ -171,6 +196,11 @@ fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
                 update = { it.player = previewPlayer },
                 modifier = Modifier.fillMaxSize()
             )
+            if (previewStatus.isNotBlank()) {
+                Text(previewStatus, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xCC080B12)).padding(horizontal = 12.dp, vertical = 8.dp))
+            }
         } else {
             Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("LIVE PREVIEW", color = Accent1, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)

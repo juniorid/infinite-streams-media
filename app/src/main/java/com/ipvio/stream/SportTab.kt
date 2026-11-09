@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -92,6 +93,11 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
     var manageLeagues by remember { mutableStateOf(false) }
+    val editLeaguesFocus = remember { FocusRequester() }
+    var editLeagueFocused by remember { mutableStateOf(false) }
+    var todayFocused by remember { mutableStateOf(false) }
+    var refreshFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { delay(150); runCatching { editLeaguesFocus.requestFocus() } }
     var selectedScoreLeague by remember { mutableStateOf("All") }
     var selectedStandingsLeague by remember { mutableStateOf("NFL") }
     var standingsRefresh by remember { mutableIntStateOf(0) }
@@ -196,7 +202,6 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 Modifier.clip(RoundedCornerShape(DS.RadiusS))
                                     .background(if (tabFocused || hubSection == label) Color(0xFF245B22) else Color(0xFF202A24))
                                     .border(if (tabFocused) 3.dp else 1.dp, if (tabFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
-                                    .focusable()
                                     .onFocusChanged { tabFocused = it.isFocused }
                                     .clickable { hubSection = label; if (label == "Multi-View") showMultiViewFullscreen = true }
                                     .padding(horizontal = dpx(14), vertical = dpx(9)),
@@ -214,13 +219,16 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(dpx(10))
                     ) {
                         Text("EDIT LEAGUES", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(DS.RadiusS)).focusable().clickable { manageLeagues = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                            modifier = Modifier.focusRequester(editLeaguesFocus).clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
+                                .border(if (editLeagueFocused) 3.dp else 1.dp, if (editLeagueFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(DS.RadiusS))
+                                .onFocusChanged { editLeagueFocused = it.isFocused }.clickable { manageLeagues = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
-                                .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(50)).focusable().clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
+                                .border(if (todayFocused) 3.dp else 1.dp, if (todayFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(50))
+                                .onFocusChanged { todayFocused = it.isFocused }.clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
-                            .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(50)).focusable().clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
+                            .border(if (refreshFocused) 3.dp else 1.dp, if (refreshFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(50))
+                            .onFocusChanged { refreshFocused = it.isFocused }.clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                         Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
@@ -408,6 +416,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             }
         }
         if (manageLeagues) {
+            val firstLeagueFocus = remember { FocusRequester() }
+            LaunchedEffect(manageLeagues) { if (manageLeagues) { delay(120); runCatching { firstLeagueFocus.requestFocus() } } }
             Dialog(onDismissRequest = { manageLeagues = false }) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(10))) {
@@ -429,7 +439,12 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                         items(scoreLeagues, key = { "edit-league-" + it }) { league ->
                             val checked = enabledLeagues.value.contains(league)
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                            var leagueFocused by remember(league) { mutableStateOf(false) }
+                            Row((if (league == scoreLeagues.first()) Modifier.focusRequester(firstLeagueFocus) else Modifier)
+                                .fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                .background(if (leagueFocused) Color(0xFF245B22) else Color.Transparent)
+                                .border(if (leagueFocused) 2.dp else 1.dp, if (leagueFocused) Color(0xFF9BE15D) else Color(0x225B8B50), RoundedCornerShape(DS.RadiusS))
+                                .onFocusChanged { leagueFocused = it.isFocused }
                                 .clickable {
                                     val next = enabledLeagues.value.toMutableSet().apply {
                                         if (!add(league)) remove(league)
@@ -447,7 +462,9 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         }
                     }
                     Text("DONE", color = Accent2, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.End).clickable { manageLeagues = false }.padding(8.dp))
+                        modifier = Modifier.align(Alignment.End).clip(RoundedCornerShape(DS.RadiusS))
+                            .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(DS.RadiusS))
+                            .clickable { manageLeagues = false }.padding(8.dp))
                 }
             }
         }
