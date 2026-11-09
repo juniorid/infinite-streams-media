@@ -123,7 +123,7 @@ fun Guide(
     val base = (openedAt - 1800) - ((openedAt - 1800) % 1800)
     // Sender mit Archiv (Catchup): so viele Tage lässt sich zurückblättern
     val pastDays = remember(list, Catchup.version) { Catchup.maxDays(list) }
-    val minStart = base - pastDays * 86400L
+    val minStart = base - maxOf(pastDays * 86400L, 12 * 3600L)
     // "Jetzt" wandert mit: die Markierung und der Status der Sendungen werden alle 30 s aktualisiert
     var nowSec by remember { mutableLongStateOf(openedAt) }
     LaunchedEffect(Unit) { while (true) { delay(30_000); nowSec = System.currentTimeMillis() / 1000 } }
