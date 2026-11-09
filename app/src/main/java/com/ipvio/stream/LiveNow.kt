@@ -35,6 +35,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.DisposableEffect
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 
 /*
  * Runde 17b – Live TV im „Cinematic“-Stil (Entwurf Bild 3): Hintergrund in der Farbe des markierten Senders mit großem,
@@ -105,6 +117,66 @@ fun LiveNowPanel(ch: Item?, modifier: Modifier = Modifier) {
                 }
             }
             if (nowE == null && epg.isEmpty()) Text("Für diesen Sender gibt es kein Programm.", color = Muted, fontSize = spx(18))
+        }
+    }
+}
+
+/** Muted, lightweight live preview for the channel currently highlighted in the Live TV list. */
+@Composable
+fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val player = remember(ch?.id, ch?.url) {
+        val http = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(10_000)
+            .setReadTimeoutMs(15_000)
+        ExoPlayer.Builder(ctx, SoftAudio.factory(ctx))
+            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(5_000, 15_000, 1_000, 3_000).build())
+            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx).setDataSourceFactory(TapAwareDataSource.Factory(DefaultDataSource.Factory(ctx, http))))
+            .build().apply {
+                volume = 0f
+                videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
+            }
+    }
+    LaunchedEffect(player, ch?.url) {
+        val url = ch?.url
+        if (!url.isNullOrBlank()) {
+            player.setMediaItem(MediaItem.fromUri(url))
+            player.prepare()
+            player.playWhenReady = true
+        } else {
+            player.stop()
+            player.clearMediaItems()
+        }
+    }
+    DisposableEffect(player) { onDispose { player.release() } }
+    val shape = RoundedCornerShape(dpx(18))
+    Box(
+        modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape)
+            .background(Color(0xFF05070B)).border(1.dp, Accent1.copy(alpha = .65f), shape)
+    ) {
+        if (ch != null && !ch.url.isNullOrBlank()) {
+            val previewPlayer = player
+            AndroidView(
+                factory = { c -> PlayerView(c).apply {
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    setKeepContentOnPlayerReset(false)
+                    this.player = previewPlayer
+                } },
+                update = { it.player = previewPlayer },
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("LIVE PREVIEW", color = Accent1, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                Text(if (ch == null) "Select a channel" else "No stream URL", color = Muted, fontSize = 14.sp)
+            }
+        }
+        Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            LiveBadge()
+            Text(ch?.title.orEmpty(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
