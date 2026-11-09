@@ -87,368 +87,53 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
             .getStringSet("enabled_leagues", scoreLeagues.toMutableSet())?.toSet() ?: scoreLeagues.toSet())
     }
     var scoreRefresh by remember { mutableIntStateOf(0) }
-    // Load only leagues the user enabled. Keep results cached when navigating between hub sections.
-    val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, enabledLeagues.value) {
-        value = withContext(IO) { SportLogic.fetchScoreboards(enabledLeagues.value) }
+    // Scores uses the enabled filter; My Teams/Manage Follows always loads all leagues so Clear All
+    // never makes the follow manager empty or impossible to navigate.
+    val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, enabledLeagues.value, hubSection, manageFollows) {
+        val leaguesToLoad = if (hubSection == "My teams" || manageFollows) scoreLeagues.toSet() else enabledLeagues.value
+        value = withContext(IO) { SportLogic.fetchScoreboards(leaguesToLoad) }
     }
     val activeScoreLeagues = scoreLeagues.filter { enabledLeagues.value.contains(it) }
     var manageLeagues by remember { mutableStateOf(false) }
     val editLeaguesFocus = remember { FocusRequester() }
+    val selectAllLeaguesFocus = remember { FocusRequester() }
+    val clearAllLeaguesFocus = remember { FocusRequester() }
+    val doneLeaguesFocus = remember { FocusRequester() }
+    val manageFollowsFocus = remember { FocusRequester() }
+    val firstFollowLeagueFocus = remember { FocusRequester() }
+    val doneFollowsFocus = remember { FocusRequester() }
     var editLeagueFocused by remember { mutableStateOf(false) }
     var todayFocused by remember { mutableStateOf(false) }
     var refreshFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { delay(150); runCatching { editLeaguesFocus.requestFocus() } }
-    var selectedScoreLeague by remember { mutableStateOf("All") }
-    var selectedStandingsLeague by remember { mutableStateOf("NFL") }
-    var standingsRefresh by remember { mutableIntStateOf(0) }
-    val standings by produceState<SportLogic.StandingsTable?>(null, selectedStandingsLeague, standingsRefresh, hubSection) {
-        if (hubSection == "Standings") {
-            value = withContext(IO) { SportLogic.fetchStandings(selectedStandingsLeague) }
-        }
-    }
-    var liveOnlyScores by remember { mutableStateOf(false) }
-    var channelOnlyScores by remember { mutableStateOf(false) }
-    var channelPickerGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
-    var selectedPreviewGameId by remember { mutableStateOf<String?>(null) }
-    var manageFollows by remember { mutableStateOf(false) }
-    var selectedFollowLeague by remember { mutableStateOf("NFL") }
-    var multiViewChannels by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var showMultiViewPicker by remember { mutableStateOf(false) }
-    var showMultiViewFullscreen by remember { mutableStateOf(false) }
-    var selectedMultiViewChannelId by remember { mutableStateOf<String?>(null) }
-    var multiViewCategory by remember { mutableStateOf<String?>(null) }
-    var multiViewCategoryMenu by remember { mutableStateOf(false) }
-    val multiViewCategories = remember(live) { live.map { it.group.ifBlank { "Other" } }.distinct().sorted() }
-    val favoriteTeams = remember(context) { mutableStateOf(context.getSharedPreferences("sports_hub", 0).getStringSet("favorite_teams", emptySet())?.toSet() ?: emptySet()) }
-    fun toggleFavorite(team: String) {
-        val next = favoriteTeams.value.toMutableSet().apply { if (!add(team)) remove(team) }
-        favoriteTeams.value = next
-        context.getSharedPreferences("sports_hub", 0).edit().putStringSet("favorite_teams", next).apply()
-    }
-    val visibleScoreGames = scoreGames.filter { game ->
-        (if (selectedScoreLeague == "All") activeScoreLeagues.contains(game.league) else game.league == selectedScoreLeague) &&
-            (!liveOnlyScores || game.state.equals("in", true)) &&
-            (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 })
-    }
-    fun channelsForGame(game: SportLogic.ScoreGame): List<Item> {
-        // Sport/league/team matches first; FOX One and ESPN are secondary fallbacks.
-        val sportMatches = live.map { it to SportLogic.scoreChannelRank(game, it) }
-            .filter { it.second >= 5 }.sortedByDescending { it.second }.map { it.first }
-        val generalFallbacks = liveChannelsForSports(live).filter { channel ->
-            channel.title.contains("FOX One", true) || channel.group.contains("FOX One", true) ||
-                channel.title.contains("ESPN", true) || channel.group.contains("ESPN", true)
-        }
-        // Keep radio/audio-only feeds available, but place them after video feeds.
-        return (sportMatches + generalFallbacks).distinctBy { it.id }
-            .sortedBy { channel ->
-                Regex("\\b(radio|audio[- ]?only|commentary[- ]?only)\\b", RegexOption.IGNORE_CASE)
-                    .containsMatchIn(channel.title + " " + channel.group)
-            }
-    }
-    fun playScoreGame(game: SportLogic.ScoreGame) {
-        val choices = channelsForGame(game)
-        val channel = choices.firstOrNull()
-        if (channel == null) {
-            Toast.makeText(context, "No matching sports channel found for " + game.league + ".", Toast.LENGTH_LONG).show()
-            return
-        }
-        Toast.makeText(context, "Opening " + channel.title + " — hold the game for channel choices.", Toast.LENGTH_LONG).show()
-        onPlay(channel, choices)
-    }
-    fun chooseScoreChannel(game: SportLogic.ScoreGame) {
-        if (channelsForGame(game).isEmpty()) Toast.makeText(context, "No matching sports channels found.", Toast.LENGTH_LONG).show()
-        else channelPickerGame = game
-    }
-    // Runde 22: Filter nach Zeitfenster (3 Std. / heute / morgen) und Sportart; die Chips zeigen nur Sportarten mit Treffern
-    var win by remember { mutableIntStateOf(0) }
-    var sport by remember { mutableIntStateOf(-1) }
-    val zone = General.zone()
-    val nowSec = remember(tick, slots) { System.currentTimeMillis() / 1000 }
-    val nowCats = remember(allNow) { allNow.map { SportLogic.categoryOf(it.prog.title, it.ch.title + " " + it.ch.group) } }
-    val soonCats = remember(allSoon) { allSoon.map { SportLogic.categoryOf(it.prog.title, it.ch.title + " " + it.ch.group) } }
-    val soonIn = remember(allSoon, win, nowSec) { allSoon.indices.filter { SportLogic.startsIn(win, allSoon[it].prog.start, nowSec, zone) } }
-    val showNow = win != 2
-    val counts = IntArray(SportLogic.CATS.size + 1)
-    if (showNow) nowCats.forEach { counts[it]++ }
-    soonIn.forEach { counts[soonCats[it]]++ }
-    val chipCats = counts.indices.filter { counts[it] > 0 || it == sport }.sortedByDescending { counts[it] }
-    val now = if (!showNow) emptyList() else allNow.filterIndexed { i, _ -> sport < 0 || nowCats[i] == sport }
-    val soon = soonIn.filter { sport < 0 || soonCats[it] == sport }.map { allSoon[it] }
-    val chCats = remember(channels) { channels.map { SportLogic.categoryOf("", it.title + " " + it.group) } }
-    val chShown = if (sport < 0) channels else channels.filterIndexed { i, _ -> chCats[i] == sport }
-    val nothing = now.isEmpty() && soon.isEmpty() && chShown.isEmpty()
-    Box(Modifier.fillMaxSize()) {
-        if (channels.isEmpty() && allNow.isEmpty() && allSoon.isEmpty() && slots != null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                EmptyState(AIcon.Live, "Keine Sportsender gefunden", "Sportsender werden an Kategorie und Namen erkannt (z. B. „Sport“, „DAZN“, „Eurosport“). Sport-Sendungen erscheinen, sobald der TV-Guide geladen ist.")
-            }
-            return@Box
-        }
-        LazyColumn(
-            Modifier.fillMaxSize().padding(start = dpx(40), end = dpx(40)),
-            contentPadding = PaddingValues(top = dpx(30), bottom = dpx(60)),
-            verticalArrangement = Arrangement.spacedBy(dpx(26))
-        ) {
-            item(key = "head") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(16))) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(dpx(12)),
-                        contentPadding = PaddingValues(horizontal = dpx(4), vertical = dpx(4))
-                    ) {
-                        items(listOf("Scores", "My teams", "Standings", "Multi-View"), key = { "hub-tab-" + it }) { label ->
-                            var tabFocused by remember(label) { mutableStateOf(false) }
-                            Column(
-                                Modifier.clip(RoundedCornerShape(DS.RadiusS))
-                                    .background(if (tabFocused || hubSection == label) Color(0xFF245B22) else Color(0xFF202A24))
-                                    .border(if (tabFocused) 3.dp else 1.dp, if (tabFocused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
-                                    .onFocusChanged { tabFocused = it.isFocused }
-                                    .clickable { hubSection = label; if (label == "Multi-View") showMultiViewFullscreen = true }
-                                    .padding(horizontal = dpx(14), vertical = dpx(9)),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(dpx(4))
-                            ) {
-                                Text(label, color = Color.White, fontSize = spx(18), fontWeight = if (hubSection == label) FontWeight.Bold else FontWeight.Medium)
-                                Box(Modifier.width(if (hubSection == label) dpx(54) else 0.dp).height(dpx(3)).clip(RoundedCornerShape(50)).background(if (hubSection == label) Color(0xFF9BE15D) else Color.Transparent))
-                            }
-                        }
-                    }
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(dpx(10))
-                    ) {
-                        Text("EDIT LEAGUES", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.focusRequester(editLeaguesFocus).clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .border(if (editLeagueFocused) 3.dp else 1.dp, if (editLeagueFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(DS.RadiusS))
-                                .onFocusChanged { editLeagueFocused = it.isFocused }.clickable { manageLeagues = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
-                        Text("TODAY", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
-                                .border(if (todayFocused) 3.dp else 1.dp, if (todayFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(50))
-                                .onFocusChanged { todayFocused = it.isFocused }.clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
-                        Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
-                            .border(if (refreshFocused) 3.dp else 1.dp, if (refreshFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(50))
-                            .onFocusChanged { refreshFocused = it.isFocused }.clickable { tick++; scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                        Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                        Text("${channels.size} sports channels", color = Muted, fontSize = 13.sp)
-                        if (slots == null) Text("• Updating", color = Muted, fontSize = 12.sp)
-                    }
-                }
-            }
-            if (hubSection == "Scores") item(key = "featured-score") {
-                val featured = visibleScoreGames.firstOrNull { it.id == selectedPreviewGameId }
-                    ?: visibleScoreGames.firstOrNull { it.state.equals("in", true) }
-                    ?: visibleScoreGames.firstOrNull()
-                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull(), onOpen = { playScoreGame(featured) })
-                else Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
-                    Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
-                }
-            }
-            if (hubSection == "Scores") item(key = "score-filters") {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(9)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                    item { FilterPill("With a channel", channelOnlyScores) { channelOnlyScores = !channelOnlyScores } }
-                    item { FilterPill("● Live", liveOnlyScores) { liveOnlyScores = !liveOnlyScores } }
-                    item { FilterPill("All sports", selectedScoreLeague == "All") { selectedScoreLeague = "All"; selectedPreviewGameId = null } }
-                    items(activeScoreLeagues, key = { "league-chip-" + it }) { league ->
-                        FilterPill(league, selectedScoreLeague == league) { selectedScoreLeague = league; selectedPreviewGameId = null }
-                    }
-                }
-            }
-            if (hubSection == "Scores") item(key = "score-section") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                        Text(if (selectedScoreLeague == "All") "Live scores & games" else selectedScoreLeague, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                        Text("${visibleScoreGames.size} games", color = Muted, fontSize = 13.sp)
-                    }
-                    if (visibleScoreGames.isNotEmpty()) {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
-                        }
-                    } else {
-                        Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
-                    }
-                }
-            }
-            if (hubSection == "Scores" && slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "filters") {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(10)), contentPadding = PaddingValues(vertical = dpx(4), horizontal = dpx(4))) {
-                    val wins = listOf("Nächste 3 Std.", "Heute", "Morgen")
-                    itemsIndexed(wins, key = { i, _ -> "w$i" }) { i, l ->
-                        FilterPill(l, win == i, if (i == 0 && nothing) Modifier.focusRequester(ContentFocus.req) else Modifier) { win = i }
-                    }
-                    item(key = "sep") { Box(Modifier.width(2.dp).height(dpx(28)).background(DS.Overlay3)) }
-                    item(key = "all") { FilterPill("Alle · " + counts.sum(), sport < 0) { sport = -1 } }
-                    itemsIndexed(chipCats, key = { _, c -> "c$c" }) { _, c ->
-                        FilterPill(SportLogic.catName(c) + " · " + counts[c], sport == c) { sport = c }
-                    }
-                }
-            }
-            if (hubSection == "Scores" && now.isNotEmpty()) item(key = "now") {
-                SportRow("Jetzt live", now, first = true) { s -> onPlay(s.ch, channels.ifEmpty { now.map { it.ch } }) }
-            }
-            if (hubSection == "Scores" && soon.isNotEmpty()) item(key = "soon") {
-                SportRow(when (win) { 0 -> "Gleich"; 1 -> "Heute"; else -> "Morgen" }, soon, first = now.isEmpty()) { s -> onPlay(s.ch, channels.ifEmpty { soon.map { it.ch } }) }
-            }
-            if (hubSection == "Scores" && chShown.isNotEmpty()) item(key = "chs") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Text("Sportsender", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(14)), contentPadding = PaddingValues(vertical = dpx(8), horizontal = dpx(4))) {
-                        itemsIndexed(chShown, key = { i, c -> c.id + "#" + i }) { i, c ->
-                            SportChannelTile(c, if (i == 0 && now.isEmpty() && soon.isEmpty()) Modifier.focusRequester(ContentFocus.req) else Modifier) { onPlay(c, chShown) }
-                        }
-                    }
-                }
-            }
-            if (hubSection == "My teams") item(key = "my-teams") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(16))) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("My Teams", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        Text("Manage follows", color = Accent2, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2).clickable { manageFollows = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
-                    }
-                    val followed = scoreGames.filter { favoriteTeams.value.contains(it.home) || favoriteTeams.value.contains(it.away) }
-                    val featuredFollowed = followed.firstOrNull { it.state.equals("in", true) } ?: followed.firstOrNull()
-                    if (featuredFollowed != null) FeaturedGamePanel(featuredFollowed, channelsForGame(featuredFollowed).firstOrNull(), onOpen = { playScoreGame(featuredFollowed) })
-                    if (favoriteTeams.value.isEmpty()) Text("No teams followed yet. Select Manage follows to choose a league and team.", color = Muted)
-                    else if (followed.isEmpty()) Text("Your followed teams have no games listed right now.", color = Muted)
-                    else LazyColumn(verticalArrangement = Arrangement.spacedBy(dpx(10)), modifier = Modifier.height(dpx(360))) {
-                        items(followed, key = { "followed-" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
-                    }
-                }
-            }
-            if (hubSection == "Standings") item(key = "standings") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(14))) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-                        Text("Standings", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        Text("↻ Refresh", color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .clickable { standingsRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(8)))
-                    }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                        items(activeScoreLeagues, key = { "standings-" + it }) { league ->
-                            FilterPill(league, selectedStandingsLeague == league) { selectedStandingsLeague = league }
-                        }
-                    }
-                    Text(selectedStandingsLeague, color = Accent2, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    val table = standings
-                    if (table == null) {
-                        Text("Loading ${selectedStandingsLeague} standings…", color = Muted)
-                    } else if (table.rows.isEmpty()) {
-                        Text("Standings are not currently available for ${selectedStandingsLeague}. Try refreshing later.", color = Muted)
-                    } else {
-                        table.groups.forEach { group ->
-                            val groupRows = table.rows.filter { it.group == group }
-                            if (groupRows.isNotEmpty()) {
-                                Text(group, color = Color.White, fontSize = spx(18), fontWeight = FontWeight.Bold)
-                                groupRows.forEach { row ->
-                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
-                                        .background(DS.Overlay2).padding(horizontal = dpx(12), vertical = dpx(10)),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
-                                        Text(row.rank, color = Accent2, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
-                                        if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
-                                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
-                                            Text(row.team, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                            if (row.summary.isNotBlank()) Text(row.summary, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        }
-                                        Text(row.record, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                        val ungrouped = table.rows.filter { it.group.isBlank() }
-                        if (ungrouped.isNotEmpty()) ungrouped.forEach { row ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2)
-                                .padding(horizontal = dpx(12), vertical = dpx(10)), verticalAlignment = Alignment.CenterVertically) {
-                                Text(row.rank, color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.width(dpx(30)))
-                                if (row.logo.isNotBlank()) AsyncImage(row.logo, null, Modifier.size(dpx(30)), contentScale = ContentScale.Fit)
-                                Text(row.team, color = Color.White, modifier = Modifier.weight(1f))
-                                Text(row.record, color = Color.White, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-            if (hubSection == "Multi-View") item(key = "multi-view") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Multi-View", color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.weight(1f))
-                        Text("${multiViewChannels.size}/4 screens", color = Accent2, fontWeight = FontWeight.Bold)
-                        Text("ADD SCREEN", color = if (multiViewChannels.size < 4) Color.White else Muted, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).background(DS.Overlay2).clickable { if (multiViewChannels.size < 4) showMultiViewPicker = true }.padding(horizontal = dpx(14), vertical = dpx(10)))
-                    }
-                    Text("Add up to four channels. Only the first screen plays audio.", color = Muted, fontSize = 13.sp)
-                    if (multiViewChannels.isEmpty()) Text("Select ADD SCREEN to choose your first channel.", color = Muted)
-                    else {
-                        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-                            val gap = dpx(8)
-                            val cellWidth = (maxWidth - gap) / 2
-                            androidx.compose.foundation.layout.Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                                multiViewChannels.chunked(2).forEachIndexed { rowIndex, rowChannels ->
-                                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                                        rowChannels.forEachIndexed { colIndex, channel ->
-                                            val index = rowIndex * 2 + colIndex
-                                            Column(Modifier.width(cellWidth).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xFF101827)).padding(dpx(5))) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(channel.title, color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                                    Text("×", color = Accent2, fontSize = 20.sp, modifier = Modifier.clickable { multiViewChannels = multiViewChannels.filterIndexed { i, _ -> i != index } }.padding(horizontal = dpx(6)))
-                                                }
-                                                SecondStream(channel, split = true, audioOn = index == 0, cropToFill = false, modifier = Modifier.fillMaxWidth().height(dpx(125)))
-                                            }
-                                        }
-                                        if (rowChannels.size == 1) Spacer(Modifier.width(cellWidth))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (hubSection == "Scores" && nothing && slots != null && (allNow.isNotEmpty() || allSoon.isNotEmpty())) item(key = "none") {
-                Column(verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                    Text("Keine Sendungen für diese Auswahl", color = Muted, fontSize = 18.sp)
-                    FilterPill("Filter zurücksetzen", false) { sport = -1; win = 0 }
-                }
-            }
-        }
+    var followsButtonFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(manageLeagues) {
         if (manageLeagues) {
-            val firstLeagueFocus = remember { FocusRequester() }
-            LaunchedEffect(manageLeagues) { if (manageLeagues) { delay(120); runCatching { firstLeagueFocus.requestFocus() } } }
             Dialog(onDismissRequest = { manageLeagues = false }) {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
+                Column(Modifier.fillMaxWidth().height(dpx(590)).clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(10))) {
                     Text("Edit sports leagues", color = Color.White, fontSize = spx(21), fontWeight = FontWeight.Bold)
                     Text("Choose which leagues appear in Scores, My Teams, and Standings.", color = Muted, fontSize = 13.sp)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                        Text("Select all", color = Accent2, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
-                                enabledLeagues.value = scoreLeagues.toSet()
-                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toMutableSet()).apply()
-                            }.padding(vertical = dpx(8)))
-                        Text("Clear all", color = Accent2, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
-                                enabledLeagues.value = emptySet()
-                                context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", mutableSetOf<String>()).apply()
-                                selectedScoreLeague = "All"
-                            }.padding(vertical = dpx(8)))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(12))) {
+                        PillButton("Select all", Modifier.focusRequester(selectAllLeaguesFocus), light = true) {
+                            enabledLeagues.value = scoreLeagues.toSet()
+                            context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", scoreLeagues.toMutableSet()).apply()
+                        }
+                        PillButton("Clear all", Modifier.focusRequester(clearAllLeaguesFocus)) {
+                            enabledLeagues.value = emptySet()
+                            context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", mutableSetOf<String>()).apply()
+                            selectedScoreLeague = "All"
+                        }
                     }
-                    LazyColumn(Modifier.height(dpx(360)), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                         items(scoreLeagues, key = { "edit-league-" + it }) { league ->
                             val checked = enabledLeagues.value.contains(league)
                             var leagueFocused by remember(league) { mutableStateOf(false) }
-                            Row((if (league == scoreLeagues.first()) Modifier.focusRequester(firstLeagueFocus) else Modifier)
-                                .fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
                                 .background(if (leagueFocused) Color(0xFF245B22) else Color.Transparent)
                                 .border(if (leagueFocused) 2.dp else 1.dp, if (leagueFocused) Color(0xFF9BE15D) else Color(0x225B8B50), RoundedCornerShape(DS.RadiusS))
                                 .onFocusChanged { leagueFocused = it.isFocused }
                                 .clickable {
-                                    val next = enabledLeagues.value.toMutableSet().apply {
-                                        if (!add(league)) remove(league)
-                                    }
+                                    val next = enabledLeagues.value.toMutableSet().apply { if (!add(league)) remove(league) }
                                     enabledLeagues.value = next
                                     context.getSharedPreferences("sports_hub", 0).edit().putStringSet("enabled_leagues", next.toMutableSet()).apply()
                                     if (!next.contains(selectedScoreLeague)) selectedScoreLeague = "All"
@@ -461,35 +146,52 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                             }
                         }
                     }
-                    Text("DONE", color = Accent2, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.End).clip(RoundedCornerShape(DS.RadiusS))
-                            .border(1.dp, Color(0xFF9BE15D), RoundedCornerShape(DS.RadiusS))
-                            .clickable { manageLeagues = false }.padding(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        PillButton("Done", Modifier.focusRequester(doneLeaguesFocus), light = true) { manageLeagues = false }
+                    }
                 }
             }
         }
         if (manageFollows) {
             Dialog(onDismissRequest = { manageFollows = false }) {
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
+                Column(Modifier.fillMaxWidth().height(dpx(570)).clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Text("Manage followed teams", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                        items(activeScoreLeagues, key = { "follow-league-" + it }) { league ->
-                            FilterPill(league, selectedFollowLeague == league) { selectedFollowLeague = league }
+                    Text("Choose a league, then select teams to follow.", color = Muted, fontSize = 13.sp)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8)), contentPadding = PaddingValues(vertical = dpx(4))) {
+                        items(scoreLeagues, key = { "follow-league-" + it }) { league ->
+                            SportLeagueChip(league, selectedFollowLeague == league,
+                                if (league == scoreLeagues.first()) Modifier.focusRequester(firstFollowLeagueFocus) else Modifier
+                            ) { selectedFollowLeague = league }
                         }
                     }
-                    val teams = scoreGames.filter { it.league == selectedFollowLeague }.flatMap { listOf(it.away, it.home) }.distinct().sorted()
-                    if (teams.isEmpty()) Text("No teams are currently listed for this league. Try another league or refresh scores.", color = Muted)
-                    else LazyColumn(Modifier.height(dpx(300)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
-                        items(teams, key = { "follow-team-" + it }) { team ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable { toggleFavorite(team) }.padding(dpx(10)),
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Text(team, color = Color.White, modifier = Modifier.weight(1f))
-                                Text(if (favoriteTeams.value.contains(team)) "✓ FOLLOWING" else "+ FOLLOW", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    val teams = scoreGames.filter { it.league == selectedFollowLeague }
+                        .flatMap { listOf(it.away, it.home) }.distinct().sorted()
+                    if (teams.isEmpty()) {
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text("Loading teams or no games listed for this league. Try Refresh scores.", color = Muted)
+                        }
+                    } else {
+                        LazyColumn(Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
+                            items(teams, key = { "follow-team-" + it }) { team ->
+                                var teamFocused by remember(team) { mutableStateOf(false) }
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                    .background(if (teamFocused) Color(0xFF245B22) else Color.Transparent)
+                                    .border(if (teamFocused) 2.dp else 1.dp, if (teamFocused) Color(0xFF9BE15D) else Color(0x225B8B50), RoundedCornerShape(DS.RadiusS))
+                                    .onFocusChanged { teamFocused = it.isFocused }
+                                    .clickable { toggleFavorite(team) }
+                                    .padding(dpx(10)), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(team, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(if (favoriteTeams.value.contains(team)) "✓ FOLLOWING" else "+ FOLLOW", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
                             }
                         }
                     }
-                    Text("DONE", color = Accent2, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.End).clickable { manageFollows = false }.padding(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("↻ Refresh scores", color = Accent2, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(RoundedCornerShape(DS.RadiusS)).clickable { scoreRefresh++ }.padding(8.dp))
+                        PillButton("Done", Modifier.focusRequester(doneFollowsFocus), light = true) { manageFollows = false }
+                    }
                 }
             }
         }
@@ -641,6 +343,19 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
 
 private fun liveChannelsForSports(live: List<Item>): List<Item> =
     live.filter { Regex("fox\\s?one|espn\\s?\\+?|sports?\\s?networks?", RegexOption.IGNORE_CASE).containsMatchIn(it.title + " " + it.group) }
+
+@Composable
+private fun SportLeagueChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var focused by remember(label) { mutableStateOf(false) }
+    val shape = RoundedCornerShape(50)
+    Text(label, color = Color.White, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        modifier = modifier.clip(shape)
+            .background(if (focused || selected) Color(0xFF245B22) else DS.Overlay2)
+            .border(if (focused) 3.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x5576B947), shape)
+            .onFocusChanged { focused = it.isFocused }
+            .clickable(onClick = onClick)
+            .padding(horizontal = dpx(12), vertical = dpx(8)))
+}
 
 @Composable
 private fun SportRow(title: String, list: List<SportLogic.Slot>, first: Boolean, onClick: (SportLogic.Slot) -> Unit) {

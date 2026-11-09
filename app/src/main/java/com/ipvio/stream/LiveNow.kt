@@ -131,87 +131,24 @@ fun LiveNowPanel(ch: Item?, modifier: Modifier = Modifier) {
 /** Muted, lightweight live preview for the channel currently highlighted in the Live TV list. */
 @Composable
 fun LivePreviewWindow(ch: Item?, modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
-    var previewStatus by remember(ch?.id, ch?.url) { mutableStateOf("Connecting to stream…") }
-    val player = remember(ch?.id, ch?.url) {
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent(LiveTaps.UA)
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(10_000)
-            .setReadTimeoutMs(15_000)
-        ExoPlayer.Builder(ctx, SoftAudio.factory(ctx))
-            .setLoadControl(DefaultLoadControl.Builder().setBufferDurationsMs(5_000, 15_000, 1_000, 3_000).build())
-            .setWakeMode(C.WAKE_MODE_NETWORK)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(ctx).setDataSourceFactory(TapAwareDataSource.Factory(DefaultDataSource.Factory(ctx, http))))
-            .build().apply {
-                volume = 0f
-                videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
-            }
-    }
-    LaunchedEffect(player, ch?.url) {
-        val url = ch?.url
-        if (!url.isNullOrBlank()) {
-            player.setMediaItem(MediaItem.fromUri(url))
-            player.prepare()
-            player.playWhenReady = true
-        } else {
-            player.stop()
-            player.clearMediaItems()
+    if (ch == null) {
+        Box(
+            modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(dpx(18)))
+                .background(Color(0xFF05070B)).border(1.dp, Accent1.copy(alpha = .65f), RoundedCornerShape(dpx(18))),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Select a channel to preview", color = Muted, fontSize = 14.sp)
         }
-    }
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                previewStatus = when (playbackState) {
-                    Player.STATE_BUFFERING -> "Buffering live stream…"
-                    Player.STATE_READY -> ""
-                    Player.STATE_ENDED -> "Stream ended"
-                    else -> "Waiting for stream…"
-                }
-            }
-            override fun onPlayerError(error: PlaybackException) {
-                previewStatus = "Preview error: " + error.errorCodeName
-            }
-        }
-        player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-            player.release()
-        }
-    }
-    val shape = RoundedCornerShape(dpx(18))
-    Box(
-        modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(shape)
-            .background(Color(0xFF05070B)).border(1.dp, Accent1.copy(alpha = .65f), shape)
-    ) {
-        if (ch != null && !ch.url.isNullOrBlank()) {
-            val previewPlayer = player
-            AndroidView(
-                factory = { c -> PlayerView(c).apply {
-                    useController = false
-                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                    setKeepContentOnPlayerReset(false)
-                    this.player = previewPlayer
-                } },
-                update = { it.player = previewPlayer },
-                modifier = Modifier.fillMaxSize()
-            )
-            if (previewStatus.isNotBlank()) {
-                Text(previewStatus, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.align(Alignment.Center).clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xCC080B12)).padding(horizontal = 12.dp, vertical = 8.dp))
-            }
-        } else {
-            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("LIVE PREVIEW", color = Accent1, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
-                Text(if (ch == null) "Select a channel" else "No stream URL", color = Muted, fontSize = 14.sp)
-            }
-        }
-        Row(Modifier.align(Alignment.BottomStart).padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            LiveBadge()
-            Text(ch?.title.orEmpty(), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+    } else {
+        // Reuse the same tested playback path as Multi-View: tap-buffer support, shared HTTP source,
+        // Media3 format handling and the normal stream-open helper.
+        SecondStream(
+            item = ch,
+            split = false,
+            audioOn = false,
+            cropToFill = false,
+            modifier = modifier.fillMaxWidth().aspectRatio(16f / 9f)
+        )
     }
 }
 

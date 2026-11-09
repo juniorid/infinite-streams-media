@@ -530,6 +530,7 @@ private fun GuideRow(
 ) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
+    val lastRemoteOkAt = remember(ch.id) { mutableStateOf(0L) }
     val cu = remember(ch.id, Catchup.version) { Catchup.of(ch) }
     // null = wird noch geladen (zeigt "lädt …" statt fälschlich "Kein Programm verfügbar")
     val raw by produceState<List<EpgEntry>?>(null, ch.id) { value = EpgFull.get(ch) }
@@ -559,14 +560,24 @@ private fun GuideRow(
                 .onPreviewKeyEvent { ev ->
                     if (ev.type == KeyEventType.KeyDown && ev.key == Key.DirectionLeft) { onClose(); true }
                     else if (ev.type == KeyEventType.KeyDown && (ev.key == Key.Enter || ev.key == Key.NumPadEnter || ev.key == Key.DirectionCenter)) {
-                        // A single remote OK always previews. Full screen is reserved for an intentional touch double-tap.
-                        onPreview()
+                        val now = System.currentTimeMillis()
+                        if (now - lastRemoteOkAt.value in 1..600) {
+                            lastRemoteOkAt.value = 0L
+                            onPick()
+                        } else {
+                            lastRemoteOkAt.value = now
+                            onPreview()
+                        }
                         true
                     } else false
                 }
-                // Use a normal clickable for immediate single-tap preview on phones/tablets.
-                // TV remote OK remains handled above; full-screen selection stays available through other guide actions.
-                .clickable(onClick = onPreview)
+                // First click/OK previews while the guide stays open; a deliberate double-click/OK opens full screen.
+                .pointerInput(ch.id) {
+                    detectTapGestures(
+                        onTap = { onPreview() },
+                        onDoubleTap = { onPick() }
+                    )
+                }
                 .focusable()
                 .padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)
