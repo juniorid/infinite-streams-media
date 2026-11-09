@@ -672,8 +672,8 @@ private fun SportChannelTile(c: Item, modifier: Modifier, onClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.RadiusM)
     Column(
         modifier.width(dpx(170)).graphicsLayer { scaleX = sc; scaleY = sc }.clip(shape)
-            .background(if (f) Color(0x33FFFFFF) else Color(0x14FFFFFF))
-            .border(if (f) 3.dp else 1.dp, if (f) Accent1 else Color(0x1AFFFFFF), shape)
+            .background(if (f) Color(0xFF245B22) else Color(0x14FFFFFF))
+            .border(if (f) 3.dp else 1.dp, if (f) Color(0xFF9BE15D) else Color(0x1AFFFFFF), shape)
             .onFocusChanged { f = it.isFocused }
             .trackFocus()
             .clickable(onClick = onClick)
