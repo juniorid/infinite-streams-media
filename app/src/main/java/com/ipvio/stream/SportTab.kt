@@ -78,6 +78,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val allNow = slots?.first.orEmpty()
     val allSoon = slots?.second.orEmpty()
+    var hubSection by remember { mutableStateOf("Scores") }
     var scoreRefresh by remember { mutableIntStateOf(0) }
     // Avoid background score requests while the user is in another hub section.
     val scoreGames by produceState<List<SportLogic.ScoreGame>>(emptyList(), scoreRefresh, hubSection) {
@@ -102,7 +103,6 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     var liveOnlyScores by remember { mutableStateOf(false) }
     var channelOnlyScores by remember { mutableStateOf(false) }
-    var hubSection by remember { mutableStateOf("Scores") }
     var channelPickerGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
     var selectedPreviewGameId by remember { mutableStateOf<String?>(null) }
     var manageFollows by remember { mutableStateOf(false) }
