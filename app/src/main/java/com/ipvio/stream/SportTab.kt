@@ -260,7 +260,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                                 .onFocusChanged { todayFocused = it.isFocused }.clickable { selectedScoreLeague = "All" }.padding(horizontal = dpx(14), vertical = dpx(10)))
                         Text("↻", color = Color.White, fontSize = 20.sp, modifier = Modifier.clip(RoundedCornerShape(50)).background(DS.Overlay2)
                             .border(if (refreshFocused) 3.dp else 1.dp, if (refreshFocused) Color(0xFF9BE15D) else Color(0xFF557B48), RoundedCornerShape(50))
-                            .onFocusChanged { refreshFocused = it.isFocused }.clickable { tick++; scoreGames = emptyList(); loadedScoreLeagues = emptySet(); scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
+                            .onFocusChanged { refreshFocused = it.isFocused }.clickable { tick++; scoreGames = emptyList(); loadedScoreLeagues = emptySet(); loadedSeasonLeagues = emptySet(); scoreRefresh++ }.padding(horizontal = dpx(12), vertical = dpx(6)))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
                         Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
