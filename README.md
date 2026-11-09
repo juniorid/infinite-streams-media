@@ -1,4 +1,4 @@
-# IPVIO Stream
+# Infinite Streams Media
 
 DOWNLOADER CODE: 4200542
 
