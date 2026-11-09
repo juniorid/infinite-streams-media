@@ -708,7 +708,6 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
         Modifier.width(dpx(300)).clip(shape)
             .background(if (focused) Color(0xFF245B22) else Color(0x1AFFFFFF))
             .border(if (focused) 3.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x1AFFFFFF), shape)
-            .focusable()
             .onFocusChanged { focused = it.isFocused }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(dpx(14)),
@@ -737,14 +736,20 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLon
 
 @Composable
 private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?, onOpen: () -> Unit) {
+    var watchFocused by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().height(dpx(310)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
-        Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM)).background(Color.Black)) {
-            if (previewChannel != null) SecondStream(previewChannel, split = false, audioOn = true, cropToFill = false, selected = true, onSelect = onOpen, modifier = Modifier.fillMaxSize())
-            else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35)))), contentAlignment = Alignment.Center) {
-                Text("No matching stream found for this game", color = Color.White, fontSize = 14.sp)
+        // Avoid a second video decoder inside the scrolling hub; it caused severe lag on TV devices.
+        Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
+            .background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35))))
+            .border(if (watchFocused) 3.dp else 1.dp, if (watchFocused) Color(0xFF9BE15D) else Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM))
+            .onFocusChanged { watchFocused = it.isFocused }.focusable().clickable(onClick = onOpen),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                Text(if (game.state.equals("in", true)) "● LIVE GAME" else "GAME CENTER", color = PT.Live, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                Text(game.league, color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold)
+                Text(if (previewChannel != null) "▶  WATCH " + previewChannel.title else "No matching sports channel", color = if (previewChannel != null) Color.White else Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Text(if (game.state.equals("in", true)) "● LIVE PREVIEW" else "GAME PREVIEW", color = PT.Live, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.align(Alignment.TopStart).padding(dpx(10)).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = dpx(9), vertical = dpx(5)))
         }
         Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
             .background(Color(0xCC17243D)).border(1.dp, Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM)).padding(dpx(14)),
