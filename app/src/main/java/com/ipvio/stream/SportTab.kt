@@ -1048,8 +1048,8 @@ private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?,
             }
             if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                GameActionButton("GAME", "Watch live", AIcon.Play, onOpen, Modifier.weight(1f))
-                GameActionButton("GAME CENTER", "Scores & stats", AIcon.Info, onGameCenter, Modifier.weight(1f))
+                GameActionButton("GAME", "Watch live", "▶", onOpen, Modifier.weight(1f))
+                GameActionButton("GAME CENTER", "Scores & stats", "▤", onGameCenter, Modifier.weight(1f))
             }
             if (game.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                 Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
