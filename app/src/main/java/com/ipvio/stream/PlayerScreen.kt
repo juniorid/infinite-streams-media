@@ -1256,12 +1256,64 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                 Text(sectionIcon, fontSize = 16.sp)
                                 Text(section.title, color = Color(0xFF9BE15D), fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
                             }
-                            section.lines.forEachIndexed { lineIndex, line ->
-                                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("•", color = Color(0xFF9BE15D), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.weight(1f))
+                            when {
+                                section.title.contains("TEAM STATISTICS") -> {
+                                    val parsed = section.lines.mapNotNull { line ->
+                                        val match = Regex("^(.+?) · (.+?):\\s*(.+)$").find(line) ?: return@mapNotNull null
+                                        Triple(match.groupValues[1].trim(), match.groupValues[2].trim(), match.groupValues[3].trim())
+                                    }
+                                    val groups = parsed.groupBy { it.second }
+                                    if (groups.isEmpty()) {
+                                        section.lines.forEach { line -> Text(line, color = Color.White, fontSize = 12.sp) }
+                                    } else groups.entries.forEach { (label, entries) ->
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(label, color = Color(0xFFB8C8B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            val numeric = entries.mapNotNull { it.third.replace("%", "").replace(",", "").toDoubleOrNull() }
+                                            val maxValue = (numeric.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
+                                            entries.forEach { entry ->
+                                                val number = entry.third.replace("%", "").replace(",", "").toDoubleOrNull()
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                                    Text(entry.first, color = Color.White, fontSize = 10.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                                                    Text(entry.third, color = Color(0xFFB9F36B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                                if (number != null) {
+                                                    Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Color(0xFF344454))) {
+                                                        Box(Modifier.fillMaxWidth((number / maxValue).toFloat().coerceIn(0f, 1f)).fillMaxHeight()
+                                                            .clip(CircleShape).background(Color(0xFF78C850)))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                                if (lineIndex < section.lines.lastIndex) Spacer(Modifier.height(1.dp))
+                                section.title.contains("PLAYER STATISTICS") -> {
+                                    val grouped = section.lines.groupBy { line ->
+                                        if (line.contains(" · ")) line.substringBefore(" · ") else "PLAYER DETAILS"
+                                    }
+                                    grouped.forEach { (team, lines) ->
+                                        Text(team, color = Color(0xFFB9F36B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        lines.forEach { line ->
+                                            val detail = if (line.contains(" · ")) line.substringAfter(" · ") else line
+                                            Text(detail, color = Color.White, fontSize = 11.sp, lineHeight = 15.sp)
+                                        }
+                                    }
+                                }
+                                section.title.contains("SCORING PLAYS") -> {
+                                    section.lines.forEachIndexed { index, line ->
+                                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Box(Modifier.size(22.dp).clip(CircleShape).background(Color(0xFF365A3C)), contentAlignment = Alignment.Center) {
+                                                Text((section.lines.size - index).toString(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                                else -> section.lines.forEach { line ->
+                                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("•", color = Color(0xFF9BE15D), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.weight(1f))
+                                    }
+                                }
                             }
                         }
                     }
