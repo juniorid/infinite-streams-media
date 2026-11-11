@@ -195,22 +195,36 @@ object SportLogic {
                     if (label.isNotBlank() && value.isNotBlank()) teamStats.add("  $label: $value")
                 }
             }
-            // Soccer and several college feeds expose team statistics on the event header
-            // instead of (or in addition to) boxscore. Merge both shapes without duplicates.
+            // ESPN moves college-soccer statistics between boxscore, header competitors,
+            // and competition competitors depending on league and event state.
             val header = root.optJSONObject("header") ?: org.json.JSONObject()
             val headerCompetition = header.optJSONArray("competitions")?.optJSONObject(0) ?: org.json.JSONObject()
-            val headerCompetitors = headerCompetition.optJSONArray("competitors") ?: org.json.JSONArray()
-            for (i in 0 until headerCompetitors.length()) {
-                val competitor = headerCompetitors.optJSONObject(i) ?: continue
-                val teamName = competitor.optJSONObject("team")?.optString("displayName").orEmpty()
-                val stats = competitor.optJSONArray("statistics") ?: org.json.JSONArray()
-                for (j in 0 until stats.length()) {
-                    val stat = stats.optJSONObject(j) ?: continue
-                    val label = stat.optString("label").ifBlank { stat.optString("name") }
-                    val value = stat.optString("displayValue").ifBlank { stat.optString("value") }
-                    if (label.isNotBlank() && value.isNotBlank()) teamStats.add("$teamName · $label: $value")
+            val eventCompetition = root.optJSONArray("competitions")?.optJSONObject(0) ?: org.json.JSONObject()
+            fun collectCompetitorStats(competition: org.json.JSONObject) {
+                val competitors = competition.optJSONArray("competitors") ?: org.json.JSONArray()
+                for (i in 0 until competitors.length()) {
+                    val competitor = competitors.optJSONObject(i) ?: continue
+                    val teamName = competitor.optJSONObject("team")?.optString("displayName")
+                        .orEmpty().ifBlank { competitor.optString("displayName") }
+                    val stats = competitor.optJSONArray("statistics") ?: competitor.optJSONArray("stats") ?: org.json.JSONArray()
+                    for (j in 0 until stats.length()) {
+                        val stat = stats.optJSONObject(j) ?: continue
+                        val label = stat.optString("label").ifBlank { stat.optString("name") }
+                            .ifBlank { stat.optString("abbreviation") }
+                        val raw = stat.opt("displayValue") ?: stat.opt("value")
+                        val value = when (raw) {
+                            null, org.json.JSONObject.NULL -> ""
+                            is org.json.JSONObject -> raw.optString("displayValue").ifBlank { raw.optString("value") }
+                            else -> raw.toString()
+                        }
+                        if (label.isNotBlank() && value.isNotBlank() && value != "null") {
+                            teamStats.add("$teamName · $label: $value")
+                        }
+                    }
                 }
             }
+            collectCompetitorStats(headerCompetition)
+            collectCompetitorStats(eventCompetition)
             add("TEAM STATISTICS", teamStats)
 
             val playerLines = ArrayList<String>()
@@ -310,14 +324,34 @@ object SportLogic {
             }
             add("MATCH COMMENTARY", commentaryLines)
 
-            val broadcasts = root.optJSONArray("broadcasts") ?: headerCompetition.optJSONArray("broadcasts") ?: org.json.JSONArray()
+            // Broadcast payloads vary: names may be strings or objects, and some
+            // soccer events publish geoBroadcasts/media objects instead of broadcasts.
+            val broadcasts = root.optJSONArray("broadcasts")
+                ?: headerCompetition.optJSONArray("broadcasts")
+                ?: headerCompetition.optJSONArray("geoBroadcasts")
+                ?: eventCompetition.optJSONArray("broadcasts")
+                ?: eventCompetition.optJSONArray("geoBroadcasts")
+                ?: org.json.JSONArray()
             val broadcastLines = ArrayList<String>()
+            fun readable(value: org.json.JSONObject): String {
+                val media = value.optJSONObject("media")
+                return value.optString("shortName").ifBlank { value.optString("name") }
+                    .ifBlank { value.optString("callLetters") }
+                    .ifBlank { media?.optString("shortName").orEmpty() }
+                    .ifBlank { media?.optString("name").orEmpty() }
+            }
             for (i in 0 until broadcasts.length()) {
-                val broadcast = broadcasts.optJSONObject(i) ?: continue
-                val names = broadcast.optJSONArray("names") ?: org.json.JSONArray()
-                val name = (0 until names.length()).joinToString(", ") { names.optString(it) }
-                    .ifBlank { broadcast.optString("media").ifBlank { broadcast.optString("name") } }
-                if (name.isNotBlank()) broadcastLines.add(name)
+                val broadcast = broadcasts.optJSONObject(i)
+                val rawNames = broadcast?.optJSONArray("names")
+                val names = if (rawNames != null) (0 until rawNames.length()).mapNotNull { index ->
+                    when (val entry = rawNames.opt(index)) {
+                        is org.json.JSONObject -> readable(entry).takeIf { it.isNotBlank() }
+                        is String -> entry.takeIf { it.isNotBlank() }
+                        else -> null
+                    }
+                } else emptyList()
+                val name = names.joinToString(", ").ifBlank { broadcast?.let { readable(it) }.orEmpty() }
+                if (name.isNotBlank() && name !in broadcastLines) broadcastLines.add(name)
             }
             add("HOW TO WATCH", broadcastLines)
 
