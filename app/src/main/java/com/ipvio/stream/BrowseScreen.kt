@@ -166,7 +166,7 @@ fun BrowseScreen(
     onPerson: (PersonRef) -> Unit = {}
 ) {
     val ctx = LocalContext.current
-    var browseQuery by remember(req.title) { mutableStateOf("") }
+    var browseQuery by remember { mutableStateOf("") }
     val browseVoice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
             ?.takeIf { it.isNotBlank() }?.let { browseQuery = it }
