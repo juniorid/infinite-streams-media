@@ -86,7 +86,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     }
     val allNow = slots?.first.orEmpty()
     val allSoon = slots?.second.orEmpty()
-    val scoreLeagues = listOf("NFL", "College Football", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
+    val scoreLeagues = listOf("NFL", "College Football", "College Soccer (Men)", "College Soccer (Women)", "NBA", "WNBA", "Men's College Basketball", "MLB", "NHL", "MLS", "Premier League", "Champions League", "UFC", "Tennis", "Golf", "Formula 1", "Cricket")
     val enabledLeagues = remember(context) {
         mutableStateOf(context.getSharedPreferences("sports_hub", 0)
             .getStringSet("enabled_leagues", scoreLeagues.toMutableSet())?.toSet() ?: scoreLeagues.toSet())

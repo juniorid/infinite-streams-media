@@ -92,6 +92,8 @@ object SportLogic {
         val leagueTerms = when (game.league) {
             "NFL" -> listOf("nfl", "american football", "football", "gridiron")
             "College Football" -> listOf("ncaa football", "college football", "ncaaf")
+            "College Soccer (Men)" -> listOf("college soccer", "ncaa soccer", "men soccer", "soccer")
+            "College Soccer (Women)" -> listOf("college soccer", "ncaa soccer", "women soccer", "soccer")
             "NBA" -> listOf("nba", "basketball")
             "WNBA" -> listOf("wnba", "basketball")
             "Men's College Basketball" -> listOf("ncaa basketball", "college basketball", "ncaab", "basketball")
@@ -262,6 +264,8 @@ object SportLogic {
     private val SCORE_FEEDS = listOf(
         ScoreFeed("NFL", "football/nfl"),
         ScoreFeed("College Football", "football/college-football"),
+        ScoreFeed("College Soccer (Men)", "soccer/usa.ncaa.m.1"),
+        ScoreFeed("College Soccer (Women)", "soccer/usa.ncaa.w.1"),
         ScoreFeed("NBA", "basketball/nba"),
         ScoreFeed("WNBA", "basketball/wnba"),
         ScoreFeed("Men's College Basketball", "basketball/mens-college-basketball"),
