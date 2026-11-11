@@ -1,5 +1,10 @@
 package com.ipvio.stream
 
+import android.content.Intent
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.graphicsLayer
@@ -161,6 +166,11 @@ fun BrowseScreen(
     onPerson: (PersonRef) -> Unit = {}
 ) {
     val ctx = LocalContext.current
+    var browseQuery by remember(req.title) { mutableStateOf("") }
+    val browseVoice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            ?.takeIf { it.isNotBlank() }?.let { browseQuery = it }
+    }
     BrowsePrefs.init(ctx)
     val req = state.req
     val ver = state.ver
@@ -193,7 +203,13 @@ var restoreIdx by remember { mutableIntStateOf(state.focused) }
     val listOrNull by produceState(state.lastList?.takeIf { state.lastKey == key }, req, key) {
         value = withContext(Dispatchers.Default) { filterAndSort(req.items, key) }.also { state.lastKey = key; state.lastList = it }
     }
-    val list = listOrNull.orEmpty()
+    val unfilteredList = listOrNull.orEmpty()
+    val list = remember(unfilteredList, browseQuery) {
+        if (browseQuery.isBlank()) unfilteredList
+        else unfilteredList.filter { item ->
+            item.title.contains(browseQuery, true) || item.group.contains(browseQuery, true)
+        }
+    }
     val ready = listOrNull != null
 
     LaunchedEffect(ready) {
@@ -304,6 +320,31 @@ var restoreIdx by remember { mutableIntStateOf(state.focused) }
                         }
                     }
                 }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Field(
+                    browseQuery,
+                    { browseQuery = it },
+                    "Titel oder Kategorie suchen…",
+                    Modifier.weight(1f)
+                )
+                PillButton("Voice", icon = AIcon.Mic) {
+                    val launched = runCatching {
+                        browseVoice.launch(
+                            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a movie, series or category")
+                        )
+                    }.isSuccess
+                    if (!launched) {
+                        runCatching { browseVoice.launch(Intent(RecognizerIntent.ACTION_WEB_SEARCH)) }
+                    }
+                }
+                if (browseQuery.isNotBlank()) PillButton("Clear") { browseQuery = "" }
             }
             Spacer(Modifier.height(2.dp))
             BoxWithConstraints(Modifier.fillMaxSize()) {
