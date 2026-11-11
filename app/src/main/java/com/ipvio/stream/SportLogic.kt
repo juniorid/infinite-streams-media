@@ -160,6 +160,132 @@ object SportLogic {
         val date: String = ""
     )
 
+    data class GameInfoSection(val title: String, val lines: List<String>)
+
+    /** Rich per-event data: team/player box score, leaders, scoring and recent plays, venue. */
+    fun fetchGameDetails(game: ScoreGame): List<GameInfoSection> {
+        val feed = SCORE_FEEDS.firstOrNull { it.label == game.league } ?: return emptyList()
+        var connection: java.net.HttpURLConnection? = null
+        return try {
+            val url = java.net.URL("https://site.api.espn.com/apis/site/v2/sports/${feed.path}/summary?event=${game.id}")
+            connection = url.openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 7000
+            connection.readTimeout = 9000
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 InfiniteStreamsMedia")
+            connection.setRequestProperty("Accept", "application/json")
+            if (connection.responseCode !in 200..299) return emptyList()
+            val root = org.json.JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            val out = ArrayList<GameInfoSection>()
+            fun add(title: String, lines: List<String>) {
+                val clean = lines.map { it.trim() }.filter { it.isNotBlank() }.distinct().take(30)
+                if (clean.isNotEmpty()) out.add(GameInfoSection(title, clean))
+            }
+            val box = root.optJSONObject("boxscore") ?: org.json.JSONObject()
+            val teamStats = ArrayList<String>()
+            val teams = box.optJSONArray("teams") ?: org.json.JSONArray()
+            for (i in 0 until teams.length()) {
+                val item = teams.optJSONObject(i) ?: continue
+                val team = item.optJSONObject("team")?.optString("displayName").orEmpty()
+                val stats = item.optJSONArray("statistics") ?: org.json.JSONArray()
+                if (team.isNotBlank()) teamStats.add(team)
+                for (j in 0 until stats.length()) {
+                    val stat = stats.optJSONObject(j) ?: continue
+                    val label = stat.optString("label").ifBlank { stat.optString("name") }
+                    val value = stat.optString("displayValue").ifBlank { stat.optString("value") }
+                    if (label.isNotBlank() && value.isNotBlank()) teamStats.add("  $label: $value")
+                }
+            }
+            add("TEAM STATISTICS", teamStats)
+
+            val playerLines = ArrayList<String>()
+            val players = box.optJSONArray("players") ?: org.json.JSONArray()
+            for (i in 0 until players.length()) {
+                val teamBlock = players.optJSONObject(i) ?: continue
+                val teamName = teamBlock.optJSONObject("team")?.optString("displayName").orEmpty()
+                val categories = teamBlock.optJSONArray("statistics") ?: org.json.JSONArray()
+                for (j in 0 until categories.length()) {
+                    val category = categories.optJSONObject(j) ?: continue
+                    val categoryName = category.optString("name").ifBlank { category.optString("type") }
+                    val athletes = category.optJSONArray("athletes") ?: org.json.JSONArray()
+                    for (k in 0 until athletes.length()) {
+                        val athlete = athletes.optJSONObject(k) ?: continue
+                        val name = athlete.optJSONObject("athlete")?.optString("displayName")
+                            ?: athlete.optString("name")
+                        val values = athlete.optJSONArray("stats") ?: org.json.JSONArray()
+                        val labels = category.optJSONArray("labels") ?: org.json.JSONArray()
+                        val pairs = ArrayList<String>()
+                        for (n in 0 until values.length()) {
+                            val value = values.optString(n)
+                            val label = labels.optString(n).ifBlank { "Stat ${n + 1}" }
+                            if (value.isNotBlank()) pairs.add("$label $value")
+                        }
+                        if (name.isNotBlank() && pairs.isNotEmpty()) {
+                            playerLines.add((if (teamName.isBlank()) "" else "$teamName · ") + "$name: " + pairs.joinToString("  "))
+                        }
+                    }
+                    if (athletes.length() == 0 && categoryName.isNotBlank()) {
+                        val names = category.optJSONArray("names") ?: org.json.JSONArray()
+                        val values = category.optJSONArray("totals") ?: org.json.JSONArray()
+                        if (values.length() > 0) playerLines.add("$categoryName: " + (0 until values.length()).joinToString("  ") { n -> "${names.optString(n)} ${values.optString(n)}" })
+                    }
+                }
+            }
+            add("PLAYER STATISTICS", playerLines)
+
+            val leaderLines = ArrayList<String>()
+            val leaders = root.optJSONArray("leaders") ?: org.json.JSONArray()
+            for (i in 0 until leaders.length()) {
+                val group = leaders.optJSONObject(i) ?: continue
+                val category = group.optString("displayName").ifBlank { group.optString("name") }
+                val entries = group.optJSONArray("leaders") ?: org.json.JSONArray()
+                for (j in 0 until entries.length()) {
+                    val entry = entries.optJSONObject(j) ?: continue
+                    val who = entry.optJSONObject("athlete")?.optString("displayName").orEmpty()
+                    val value = entry.optString("displayValue")
+                    val team = entry.optJSONObject("team")?.optString("abbreviation").orEmpty()
+                    if (who.isNotBlank() || value.isNotBlank()) leaderLines.add(listOf(category, who, team, value).filter { it.isNotBlank() }.joinToString(" · "))
+                }
+            }
+            add("GAME LEADERS", leaderLines)
+
+            val scoringLines = ArrayList<String>()
+            val scoring = root.optJSONArray("scoringPlays") ?: org.json.JSONArray()
+            for (i in 0 until scoring.length()) {
+                val play = scoring.optJSONObject(i) ?: continue
+                val text = play.optString("text").ifBlank { play.optString("shortDescription") }
+                val clock = play.optJSONObject("clock")?.optString("displayValue").orEmpty()
+                val period = play.optJSONObject("period")?.optString("number").orEmpty()
+                scoringLines.add(listOf(if (period.isBlank()) "" else "P$period", clock, text).filter { it.isNotBlank() }.joinToString(" · "))
+            }
+            add("SCORING PLAYS", scoringLines.asReversed())
+
+            val playLines = ArrayList<String>()
+            val plays = root.optJSONArray("plays") ?: org.json.JSONArray()
+            for (i in (plays.length() - 1 downTo maxOf(0, plays.length() - 12))) {
+                val play = plays.optJSONObject(i) ?: continue
+                val text = play.optString("text").ifBlank { play.optString("shortDescription") }
+                val clock = play.optJSONObject("clock")?.optString("displayValue").orEmpty()
+                val period = play.optJSONObject("period")?.optString("number").orEmpty()
+                playLines.add(listOf(if (period.isBlank()) "" else "P$period", clock, text).filter { it.isNotBlank() }.joinToString(" · "))
+            }
+            add("RECENT PLAY-BY--PLAY", playLines)
+
+            val info = root.optJSONObject("gameInfo") ?: org.json.JSONObject()
+            val venue = info.optJSONObject("venue") ?: org.json.JSONObject()
+            add("GAME INFORMATION", listOf(
+                venue.optString("fullName"),
+                venue.optJSONObject("address")?.let { listOf(it.optString("city"), it.optString("state")).filter { v -> v.isNotBlank() }.joinToString(", ") }.orEmpty(),
+                info.optString("attendance").takeIf { it.isNotBlank() }?.let { "Attendance: $it" }.orEmpty(),
+                info.optJSONArray("officials")?.let { arr -> (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("fullName")?.takeIf { n -> n.isNotBlank() } }.joinToString(", ").let { if (it.isBlank()) "" else "Officials: $it" } }.orEmpty()
+            ))
+            out
+        } catch (_: Exception) {
+            emptyList()
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     private data class ScoreFeed(val label: String, val path: String)
 
     data class StandingRow(
