@@ -90,6 +90,8 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.SubtitleView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collectLatest
 
 data class PlayReq(
@@ -183,6 +185,18 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     // Live (Runde 14): beim Öffnen gleich die Steuerleiste mit Sender und Sendung statt der kurzen Info-Box
     var controls by remember { mutableStateOf(true) }
     var gameInfoVisible by remember { mutableStateOf(req.gameInfo != null) }
+    var gameDetails by remember { mutableStateOf<List<SportLogic.GameInfoSection>>(emptyList()) }
+    var gameDetailsLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(cur.gameInfo?.id) {
+        val game = cur.gameInfo ?: return@LaunchedEffect
+        do {
+            gameDetailsLoading = gameDetails.isEmpty()
+            val fresh = withContext(Dispatchers.IO) { SportLogic.fetchGameDetails(game) }
+            gameDetails = fresh
+            gameDetailsLoading = false
+            if (game.state.equals("in", true)) delay(30_000) else break
+        } while (true)
+    }
     var focusSeek by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(Panel.NONE) }
     // Technik-Info und Untertitel-Suche (OpenSubtitles)
@@ -1188,6 +1202,21 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                             Text(game.footballPlay, color = Color.White, fontSize = 13.sp)
                             if (game.redZone) Text("RED ZONE", color = Color(0xFFFF5A5F), fontWeight = FontWeight.Bold)
                         }
+                    }
+                    if (gameDetailsLoading && gameDetails.isEmpty()) item {
+                        Text("Loading full box score and game details…", color = Color(0xFFB8C8B8), fontSize = 12.sp)
+                    }
+                    itemsIndexed(gameDetails, key = { index, section -> "game-detail-$index-${section.title}" }) { _, section ->
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                            .background(Color(0xFF202E40)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(section.title, color = Color(0xFF9BE15D), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            section.lines.forEach { line ->
+                                Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp)
+                            }
+                        }
+                    }
+                    if (!gameDetailsLoading && gameDetails.isEmpty()) item {
+                        Text("Detailed statistics are not available for this event yet.", color = Color(0xFFB8C8B8), fontSize = 12.sp)
                     }
                 }
             }
