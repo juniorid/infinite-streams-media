@@ -195,6 +195,22 @@ object SportLogic {
                     if (label.isNotBlank() && value.isNotBlank()) teamStats.add("  $label: $value")
                 }
             }
+            // Soccer and several college feeds expose team statistics on the event header
+            // instead of (or in addition to) boxscore. Merge both shapes without duplicates.
+            val header = root.optJSONObject("header") ?: org.json.JSONObject()
+            val headerCompetition = header.optJSONArray("competitions")?.optJSONObject(0) ?: org.json.JSONObject()
+            val headerCompetitors = headerCompetition.optJSONArray("competitors") ?: org.json.JSONArray()
+            for (i in 0 until headerCompetitors.length()) {
+                val competitor = headerCompetitors.optJSONObject(i) ?: continue
+                val teamName = competitor.optJSONObject("team")?.optString("displayName").orEmpty()
+                val stats = competitor.optJSONArray("statistics") ?: org.json.JSONArray()
+                for (j in 0 until stats.length()) {
+                    val stat = stats.optJSONObject(j) ?: continue
+                    val label = stat.optString("label").ifBlank { stat.optString("name") }
+                    val value = stat.optString("displayValue").ifBlank { stat.optString("value") }
+                    if (label.isNotBlank() && value.isNotBlank()) teamStats.add("$teamName · $label: $value")
+                }
+            }
             add("TEAM STATISTICS", teamStats)
 
             val playerLines = ArrayList<String>()
@@ -248,13 +264,24 @@ object SportLogic {
             }
             add("GAME LEADERS", leaderLines)
 
+            // Some ESPN soccer feeds return a timeline in "plays" but omit the separate
+            // scoringPlays array. Normalize both object and primitive clock/period values.
+            fun fieldText(value: org.json.JSONObject, key: String): String {
+                val raw = value.opt(key) ?: return ""
+                return when (raw) {
+                    is org.json.JSONObject -> raw.optString("displayValue").ifBlank { raw.optString("number") }
+                    is org.json.JSONArray -> (0 until raw.length()).joinToString(" ") { raw.optString(it) }
+                    org.json.JSONObject.NULL -> ""
+                    else -> raw.toString().takeIf { it != "null" }.orEmpty()
+                }
+            }
             val scoringLines = ArrayList<String>()
             val scoring = root.optJSONArray("scoringPlays") ?: org.json.JSONArray()
             for (i in 0 until scoring.length()) {
                 val play = scoring.optJSONObject(i) ?: continue
                 val text = play.optString("text").ifBlank { play.optString("shortDescription") }
-                val clock = play.optJSONObject("clock")?.optString("displayValue").orEmpty()
-                val period = play.optJSONObject("period")?.optString("number").orEmpty()
+                val clock = fieldText(play, "clock")
+                val period = fieldText(play, "period")
                 scoringLines.add(listOf(if (period.isBlank()) "" else "P$period", clock, text).filter { it.isNotBlank() }.joinToString(" · "))
             }
             add("SCORING PLAYS", scoringLines.asReversed())
@@ -264,11 +291,35 @@ object SportLogic {
             for (i in (plays.length() - 1 downTo maxOf(0, plays.length() - 12))) {
                 val play = plays.optJSONObject(i) ?: continue
                 val text = play.optString("text").ifBlank { play.optString("shortDescription") }
-                val clock = play.optJSONObject("clock")?.optString("displayValue").orEmpty()
-                val period = play.optJSONObject("period")?.optString("number").orEmpty()
+                val clock = fieldText(play, "clock")
+                val period = fieldText(play, "period")
                 playLines.add(listOf(if (period.isBlank()) "" else "P$period", clock, text).filter { it.isNotBlank() }.joinToString(" · "))
             }
-            add("RECENT PLAY-BY--PLAY", playLines)
+            add("RECENT PLAY-BY-PLAY", playLines)
+
+            // Additional timeline/commentary payloads vary by sport and event. Keep useful
+            // descriptions even when a league does not publish a traditional box score.
+            val commentaryLines = ArrayList<String>()
+            val commentary = root.optJSONObject("commentary") ?: org.json.JSONObject()
+            val commentaryItems = commentary.optJSONArray("items") ?: root.optJSONArray("commentary") ?: org.json.JSONArray()
+            for (i in 0 until commentaryItems.length()) {
+                val item = commentaryItems.optJSONObject(i) ?: continue
+                val detail = item.optString("text").ifBlank { item.optString("description") }
+                    .ifBlank { item.optString("headline") }
+                if (detail.isNotBlank()) commentaryLines.add(detail)
+            }
+            add("MATCH COMMENTARY", commentaryLines)
+
+            val broadcasts = root.optJSONArray("broadcasts") ?: headerCompetition.optJSONArray("broadcasts") ?: org.json.JSONArray()
+            val broadcastLines = ArrayList<String>()
+            for (i in 0 until broadcasts.length()) {
+                val broadcast = broadcasts.optJSONObject(i) ?: continue
+                val names = broadcast.optJSONArray("names") ?: org.json.JSONArray()
+                val name = (0 until names.length()).joinToString(", ") { names.optString(it) }
+                    .ifBlank { broadcast.optString("media").ifBlank { broadcast.optString("name") } }
+                if (name.isNotBlank()) broadcastLines.add(name)
+            }
+            add("HOW TO WATCH", broadcastLines)
 
             val info = root.optJSONObject("gameInfo") ?: org.json.JSONObject()
             val venue = info.optJSONObject("venue") ?: org.json.JSONObject()
