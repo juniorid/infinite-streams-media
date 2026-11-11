@@ -147,6 +147,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var liveOnlyScores by remember { mutableStateOf(false) }
     var channelOnlyScores by remember { mutableStateOf(false) }
     var channelPickerGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
+    var gameCenterGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
     var selectedPreviewGameId by remember { mutableStateOf<String?>(null) }
     var selectedFollowLeague by remember { mutableStateOf("NFL") }
     var followTeams by remember { mutableStateOf<List<SportLogic.StandingRow>>(emptyList()) }
@@ -305,7 +306,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 val featured = visibleScoreGames.firstOrNull { it.id == selectedPreviewGameId }
                     ?: visibleScoreGames.firstOrNull { it.state.equals("in", true) }
                     ?: visibleScoreGames.firstOrNull()
-                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull(), onOpen = { playScoreGame(featured) })
+                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull(), onOpen = { playScoreGame(featured) }, onGameCenter = { gameCenterGame = featured })
                 else Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
                     Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
                 }
@@ -328,7 +329,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                     }
                     if (visibleScoreGames.isNotEmpty()) {
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(12)), contentPadding = PaddingValues(vertical = dpx(4))) {
-                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onLongClick = { chooseScoreChannel(game) }) }
+                            items(visibleScoreGames, key = { it.league + "|" + it.id }) { game -> ScoreGameCard(game, onClick = { playScoreGame(game) }, onGameCenter = { gameCenterGame = game }, onLongClick = { chooseScoreChannel(game) }) }
                         }
                     } else {
                         Text("Choose another sport or check back when games are scheduled.", color = Muted, fontSize = 14.sp)
@@ -791,6 +792,58 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 }
             }
         }
+        gameCenterGame?.let { game ->
+            Dialog(onDismissRequest = { gameCenterGame = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+                Column(Modifier.fillMaxWidth(0.92f).heightIn(max = dpx(620))
+                    .clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2)
+                    .border(2.dp, Color(0xFF557B48), RoundedCornerShape(DS.RadiusL)).padding(dpx(18)),
+                    verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("GAME CENTER", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(game.name, color = Color.White, fontSize = spx(22), fontWeight = FontWeight.Bold)
+                            Text(game.league + " · " + game.status, color = Muted, fontSize = 13.sp)
+                        }
+                        Text("✕", color = Color.White, modifier = Modifier.clickable { gameCenterGame = null }.padding(8.dp))
+                    }
+                    LazyColumn(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(dpx(12))) {
+                        item {
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xCC17243D)).padding(dpx(14)),
+                                verticalArrangement = Arrangement.spacedBy(dpx(10))) {
+                                ScoreTeamRow(game.away, game.awayLogo, game.awayScore, game.awayRecord)
+                                ScoreTeamRow(game.home, game.homeLogo, game.homeScore, game.homeRecord)
+                                Text(listOf(game.detail, game.period.takeIf { it.isNotBlank() }?.let { "Period $it" }.orEmpty(), game.clock).filter { it.isNotBlank() }.joinToString(" · "), color = Muted, fontSize = 13.sp)
+                                if (game.awayPeriodScores.isNotEmpty() || game.homePeriodScores.isNotEmpty()) ScoreQuarterTable(game)
+                            }
+                        }
+                        if (game.lastPlay.isNotBlank()) item {
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(DS.Overlay2).padding(dpx(14))) {
+                                Text("LATEST PLAY", color = Accent2, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                                Text(game.lastPlay, color = Color.White, fontSize = 14.sp)
+                            }
+                        }
+                        if (game.footballPlay.isNotBlank()) item {
+                            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(DS.Overlay2).padding(dpx(14))) {
+                                Text("PLAY DETAILS", color = Accent2, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                                Text(game.footballPlay, color = Color.White, fontSize = 14.sp)
+                                if (game.redZone) Text("RED ZONE", color = Color(0xFFFF5A5F), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        item { Text("More detailed box scores and play-by-play will appear when the sports data feed supplies them.", color = Muted, fontSize = 12.sp) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
+                        GameActionButton("WATCH GAME", "Normal player", AIcon.Play, {
+                            gameCenterGame = null
+                            playScoreGame(game)
+                        }, Modifier.weight(1f))
+                        GameActionButton("WATCH + INFO", "Video with panel", AIcon.Info, {
+                            gameCenterGame = null
+                            playScoreGame(game)
+                        }, Modifier.weight(1f))
+                    }
+                }
+            }
+        }
         channelPickerGame?.let { game ->
             val choices = channelsForGame(game)
             Dialog(onDismissRequest = { channelPickerGame = null }) {
@@ -911,42 +964,53 @@ private fun SportChannelTile(c: Item, modifier: Modifier, onClick: () -> Unit) {
 
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onGameCenter: () -> Unit, onLongClick: () -> Unit) {
     val shape = RoundedCornerShape(DS.RadiusM)
-    var focused by remember { mutableStateOf(false) }
-    Column(
-        Modifier.width(dpx(300)).clip(shape)
-            .background(if (focused) Color(0xFF245B22) else Color(0x1AFFFFFF))
-            .border(if (focused) 3.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x1AFFFFFF), shape)
-            .onFocusChanged { focused = it.isFocused }
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(dpx(14)),
-        verticalArrangement = Arrangement.spacedBy(dpx(10))
+    Row(
+        Modifier.width(dpx(430)).clip(shape).background(Color(0x1AFFFFFF))
+            .border(1.dp, Color(0x3376B947), shape).padding(dpx(12)),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(dpx(10))
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(game.league, color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Text(
-                when (game.state.lowercase()) {
-                    "in" -> "LIVE"
-                    "post" -> "FINAL"
-                    else -> game.detail
-                },
-                color = if (game.state.equals("in", true)) PT.Live else Muted,
-                fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1
-            )
+        Column(Modifier.weight(1f).combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(vertical = dpx(3)), verticalArrangement = Arrangement.spacedBy(dpx(8))) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(game.league, color = Accent2, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(when (game.state.lowercase()) { "in" -> "LIVE"; "post" -> "FINAL"; else -> game.detail },
+                    color = if (game.state.equals("in", true)) PT.Live else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            val football = game.league == "NFL" || game.league == "College Football"
+            ScoreTeamRow(game.away, game.awayLogo, game.awayScore, hasBall = football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.awayTeamId)
+            ScoreTeamRow(game.home, game.homeLogo, game.homeScore, hasBall = football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.homeTeamId)
+            if (football && game.footballPlay.isNotBlank()) Text(game.footballPlay, color = Color.White, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(game.status, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        val football = game.league == "NFL" || game.league == "College Football"
-        ScoreTeamRow(game.away, game.awayLogo, game.awayScore, hasBall = football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.awayTeamId)
-        ScoreTeamRow(game.home, game.homeLogo, game.homeScore, hasBall = football && game.possessionTeamId.isNotBlank() && game.possessionTeamId == game.homeTeamId)
-        if (football && game.footballPlay.isNotBlank()) Text(game.footballPlay, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
-        Text(game.status, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.width(dpx(112)), verticalArrangement = Arrangement.spacedBy(dpx(8))) {
+            GameActionButton("GAME", "Watch live", AIcon.Play, onClick, Modifier)
+            GameActionButton("GAME CENTER", "Scores & stats", AIcon.Info, onGameCenter, Modifier)
+        }
     }
 }
 
 @Composable
-private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?, onOpen: () -> Unit) {
+private fun GameActionButton(title: String, subtitle: String, icon: AIcon, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+        .background(if (focused) Color(0xFF245B22) else Color(0xFF202A24))
+        .border(if (focused) 3.dp else 1.dp, if (focused) Color(0xFF9BE15D) else Color(0x5576B947), RoundedCornerShape(DS.RadiusS))
+        .onFocusChanged { focused = it.isFocused }.focusable().clickable(onClick = onClick)
+        .padding(horizontal = dpx(8), vertical = dpx(9)),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(3))) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(dpx(18)))
+        Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        Text(subtitle, color = Color(0xFFB8C8B8), fontSize = 9.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?, onOpen: () -> Unit, onGameCenter: () -> Unit) {
     var watchFocused by remember { mutableStateOf(false) }
+    var centerFocused by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().height(dpx(310)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
         // Avoid a second video decoder inside the scrolling hub; it caused severe lag on TV devices.
         Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
@@ -982,6 +1046,10 @@ private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?,
                 }
             }
             if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                GameActionButton("GAME", "Watch live", AIcon.Play, onOpen, Modifier.weight(1f))
+                GameActionButton("GAME CENTER", "Scores & stats", AIcon.Info, onGameCenter, Modifier.weight(1f))
+            }
             if (game.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                 Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                 Text(game.lastPlay, color = Color.White, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
