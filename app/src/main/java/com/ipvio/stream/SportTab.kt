@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -832,11 +833,11 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         item { Text("More detailed box scores and play-by-play will appear when the sports data feed supplies them.", color = Muted, fontSize = 12.sp) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(dpx(10))) {
-                        GameActionButton("WATCH GAME", "Normal player", AIcon.Play, {
+                        GameActionButton("WATCH GAME", "Normal player", "▶", {
                             gameCenterGame = null
                             playScoreGame(game)
                         }, Modifier.weight(1f))
-                        GameActionButton("WATCH + INFO", "Video with panel", AIcon.Info, {
+                        GameActionButton("WATCH + INFO", "Video with panel", "▤", {
                             gameCenterGame = null
                             playScoreGame(game)
                         }, Modifier.weight(1f))
@@ -986,14 +987,14 @@ private fun ScoreGameCard(game: SportLogic.ScoreGame, onClick: () -> Unit, onGam
             Text(game.status, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(Modifier.width(dpx(112)), verticalArrangement = Arrangement.spacedBy(dpx(8))) {
-            GameActionButton("GAME", "Watch live", AIcon.Play, onClick, Modifier)
-            GameActionButton("GAME CENTER", "Scores & stats", AIcon.Info, onGameCenter, Modifier)
+            GameActionButton("GAME", "Watch live", "▶", onClick, Modifier)
+            GameActionButton("GAME CENTER", "Scores & stats", "▤", onGameCenter, Modifier)
         }
     }
 }
 
 @Composable
-private fun GameActionButton(title: String, subtitle: String, icon: AIcon, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun GameActionButton(title: String, subtitle: String, icon: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
         .background(if (focused) Color(0xFF245B22) else Color(0xFF202A24))
@@ -1001,7 +1002,7 @@ private fun GameActionButton(title: String, subtitle: String, icon: AIcon, onCli
         .onFocusChanged { focused = it.isFocused }.focusable().clickable(onClick = onClick)
         .padding(horizontal = dpx(8), vertical = dpx(9)),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(3))) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(dpx(18)))
+        Text(icon, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Text(title, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
         Text(subtitle, color = Color(0xFFB8C8B8), fontSize = 9.sp, maxLines = 1)
     }
