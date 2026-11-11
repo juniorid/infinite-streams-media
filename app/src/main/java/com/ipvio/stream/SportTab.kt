@@ -1,6 +1,9 @@
 package com.ipvio.stream
 
 import android.widget.Toast
+import android.speech.RecognizerIntent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -144,6 +147,17 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     var channelPickerGame by remember { mutableStateOf<SportLogic.ScoreGame?>(null) }
     var selectedPreviewGameId by remember { mutableStateOf<String?>(null) }
     var selectedFollowLeague by remember { mutableStateOf("NFL") }
+    var followTeams by remember { mutableStateOf<List<SportLogic.StandingRow>>(emptyList()) }
+    var followTeamQuery by remember { mutableStateOf("") }
+    var sportsSearchQuery by remember { mutableStateOf("") }
+    val sportsVoiceLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { sportsSearchQuery = it }
+    }
+    LaunchedEffect(manageFollows, selectedFollowLeague) {
+        if (manageFollows) {
+            followTeams = withContext(IO) { SportLogic.fetchStandings(selectedFollowLeague).rows }
+        }
+    }
     var multiViewChannels by remember { mutableStateOf<List<Item>>(emptyList()) }
     var showMultiViewPicker by remember { mutableStateOf(false) }
     var showMultiViewFullscreen by remember { mutableStateOf(false) }
@@ -160,7 +174,8 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
     val visibleScoreGames = scoreGames.filter { game ->
         (if (selectedScoreLeague == "All") activeScoreLeagues.contains(game.league) else game.league == selectedScoreLeague) &&
             (!liveOnlyScores || game.state.equals("in", true)) &&
-            (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 })
+            (!channelOnlyScores || channels.any { SportLogic.scoreChannelRank(game, it) >= 5 }) &&
+            (sportsSearchQuery.isBlank() || listOf(game.home, game.away, game.league).any { it.contains(sportsSearchQuery, true) })
     }
     fun channelsForGame(game: SportLogic.ScoreGame): List<Item> {
         // Sport/league/team matches first; FOX One and ESPN are secondary fallbacks.
@@ -266,6 +281,21 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                         Text("SPORTS HUB", color = Accent2, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
                         Text("${channels.size} sports channels", color = Muted, fontSize = 13.sp)
                         if (slots == null) Text("• Updating", color = Muted, fontSize = 12.sp)
+                    }
+                    if (hubSection == "Scores" || hubSection == "My teams") {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
+                            Field(sportsSearchQuery, { sportsSearchQuery = it }, "Search teams, leagues or games…", Modifier.weight(1f))
+                            PillButton("Voice", icon = AIcon.Mic) {
+                                runCatching {
+                                    sportsVoiceLauncher.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        .putExtra(RecognizerIntent.EXTRA_PROMPT, "Say a team, league or game"))
+                                }.onFailure {
+                                    Toast.makeText(context, "Speech recognition is not available on this device.", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                            PillButton("Clear") { sportsSearchQuery = "" }
+                        }
                     }
                 }
             }
@@ -628,19 +658,25 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusL)).background(DS.Overlay2).padding(dpx(18)),
                     verticalArrangement = Arrangement.spacedBy(dpx(12))) {
                     Text("Manage followed teams", color = Color.White, fontSize = spx(20), fontWeight = FontWeight.Bold)
+                    Text("LEAGUE", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
                         items(scoreLeagues, key = { "follow-league-" + it }) { league ->
-                            FilterPill(league, selectedFollowLeague == league) { selectedFollowLeague = league }
+                            FilterPill(league, selectedFollowLeague == league) { selectedFollowLeague = league; followTeamQuery = "" }
                         }
                     }
-                    val teams = scoreGames.filter { it.league == selectedFollowLeague }.flatMap { listOf(it.away, it.home) }.distinct().sorted()
-                    if (teams.isEmpty()) Text("No teams are currently listed for this league. Try another league or refresh scores.", color = Muted)
-                    else LazyColumn(Modifier.height(dpx(300)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
+                    Field(followTeamQuery, { followTeamQuery = it }, "Find a team…", Modifier.fillMaxWidth())
+                    val teams = followTeams.map { it.team }.distinct().filter { followTeamQuery.isBlank() || it.contains(followTeamQuery, true) }.sorted()
+                    if (teams.isEmpty()) Text("No teams loaded for this league yet. Try another league or refresh.", color = Muted)
+                    else LazyColumn(Modifier.fillMaxWidth().height(dpx(340)), verticalArrangement = Arrangement.spacedBy(dpx(4))) {
                         items(teams, key = { "follow-team-" + it }) { team ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).clickable { toggleFavorite(team) }.padding(dpx(10)),
+                            val focusedTeam = favoriteTeams.value.contains(team)
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
+                                .background(if (focusedTeam) Color(0x33245B22) else DS.Overlay1)
+                                .border(1.dp, if (focusedTeam) Color(0xFF9BE15D) else DS.Overlay3, RoundedCornerShape(DS.RadiusS))
+                                .clickable { toggleFavorite(team) }.padding(dpx(12)),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Text(team, color = Color.White, modifier = Modifier.weight(1f))
-                                Text(if (favoriteTeams.value.contains(team)) "✓ FOLLOWING" else "+ FOLLOW", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text(if (focusedTeam) "✓ FOLLOWING" else "+ FOLLOW", color = Accent2, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             }
                         }
                     }
