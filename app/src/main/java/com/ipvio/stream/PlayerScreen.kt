@@ -65,6 +65,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -98,8 +99,11 @@ data class PlayReq(
     /** Kurzer Hinweis beim Start (z. B. „4K passt nicht zu diesem Gerät – spiele FHD“). */
     val note: String? = null,
     /** Sendung aus dem Archiv (Catchup) eines Live-Senders; [itemId] ist dann der Sender. */
-    val archive: ArchiveRef? = null
+    val archive: ArchiveRef? = null,
+    val gameInfo: SportLogic.ScoreGame? = null
 )
+
+object SportsPlayback { var nextGameInfo: SportLogic.ScoreGame? = null }
 
 /** Ziffer einer Fernbedienungstaste (0-9) oder -1. */
 private fun digitOf(k: Key): Int = when (k) {
@@ -177,6 +181,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
     var playing by remember { mutableStateOf(true) }
     // Live (Runde 14): beim Öffnen gleich die Steuerleiste mit Sender und Sendung statt der kurzen Info-Box
     var controls by remember { mutableStateOf(true) }
+    var gameInfoVisible by remember { mutableStateOf(req.gameInfo != null) }
     var focusSeek by remember { mutableStateOf(false) }
     var panel by remember { mutableStateOf(Panel.NONE) }
     // Technik-Info und Untertitel-Suche (OpenSubtitles)
@@ -596,6 +601,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         if (now - lastBackAt < 350) return
         lastBackAt = now
         when {
+            gameInfoVisible -> gameInfoVisible = false
             scrubTarget >= 0 -> scrubTarget = -1L
             panel != Panel.NONE -> closePanel()
             // Guide: eigener Zurück-Schritt (Sendung → Sender → Kategorie → schließen)
@@ -1063,7 +1069,11 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Bildformat (im verkleinerten Guide-Bild immer „Einpassen“). Zoom: Bildfläche größer als der Bildschirm, mittig;
         // 4:3: Fläche im Seitenverhältnis 4:3, mittig.
         val am = if (showGuide) 0 else aspect
+        val hasGameInfo = cur.gameInfo != null && gameInfoVisible
+        val compactGameInfo = LocalConfiguration.current.screenWidthDp < 700
         val videoMod = if (showGuide) Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 24.dp).size(width = 400.dp, height = 225.dp).clip(RoundedCornerShape(DS.RadiusM))
+        else if (hasGameInfo && compactGameInfo) Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight(0.58f)
+        else if (hasGameInfo) Modifier.align(Alignment.CenterStart).fillMaxWidth(0.66f).fillMaxHeight()
         else when (am) {
             3, 4 -> {
                 val z = if (am == 3) 1.15f else 1.33f
@@ -1097,7 +1107,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     applyStyle(v)
                 }
             },
-            modifier = if (dualSplit) Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(0.5f) else videoMod
+            modifier = if (hasGameInfo) videoMod else if (dualSplit) Modifier.align(Alignment.CenterStart).fillMaxHeight().fillMaxWidth(0.5f) else videoMod
         )
         second?.let { s2 ->
             SecondStream(
@@ -1109,7 +1119,7 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
         // Handy/Tablet (Runde 20): Tippen zeigt oder versteckt die Steuerleiste, Doppeltippen links/rechts spult,
         // Doppeltippen in der Mitte pausiert. Auf dem Fernseher ohne Wirkung (keine Berührung).
         Box(
-            Modifier.fillMaxSize().pointerInput(cur.live) {
+            (if (hasGameInfo) { if (compactGameInfo) Modifier.align(Alignment.TopStart).fillMaxWidth().fillMaxHeight(0.58f) else Modifier.align(Alignment.CenterStart).fillMaxWidth(0.66f).fillMaxHeight() } else Modifier.fillMaxSize()).pointerInput(cur.live) {
                 detectTapGestures(
                     onTap = {
                         interact = System.currentTimeMillis()
@@ -1132,6 +1142,55 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 )
             }
         )
+
+        if (hasGameInfo) {
+            val game = cur.gameInfo!!
+            val paneModifier = if (compactGameInfo) Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.42f)
+                else Modifier.align(Alignment.CenterEnd).fillMaxWidth(0.34f).fillMaxHeight()
+            Column(paneModifier.background(Color(0xF0142030)).border(2.dp, Color(0xFF4E9B43))
+                .padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("GAME CENTER", color = Color(0xFF9BE15D), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(game.league, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Text("×", color = Color.White, fontSize = 22.sp, modifier = Modifier.clickable { gameInfoVisible = false }.padding(6.dp))
+                }
+                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    item {
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xFF26384B)).padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(game.away, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(game.awayScore, color = Color(0xFF9BE15D), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(game.home, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(game.homeScore, color = Color(0xFF9BE15D), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(listOf(game.status, game.detail, game.period, game.clock).filter { it.isNotBlank() }.joinToString(" · "),
+                                color = Color(0xFFB8C8B8), fontSize = 12.sp)
+                        }
+                    }
+                    if (game.awayPeriodScores.isNotEmpty() || game.homePeriodScores.isNotEmpty()) item {
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF202E40)).padding(10.dp)) {
+                            Text("PERIOD SCORES", color = Color(0xFF9BE15D), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("Away  " + game.awayPeriodScores.joinToString("   ") + "   " + game.awayScore, color = Color.White, fontSize = 12.sp)
+                            Text("Home  " + game.homePeriodScores.joinToString("   ") + "   " + game.homeScore, color = Color.White, fontSize = 12.sp)
+                        }
+                    }
+                    if (game.lastPlay.isNotBlank()) item {
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF202E40)).padding(10.dp)) {
+                            Text("LATEST PLAY", color = Color(0xFF9BE15D), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text(game.lastPlay, color = Color.White, fontSize = 13.sp)
+                        }
+                    }
+                    if (game.footballPlay.isNotBlank()) item {
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS)).background(Color(0xFF202E40)).padding(10.dp)) {
+                            Text("PLAY DETAILS", color = Color(0xFF9BE15D), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text(game.footballPlay, color = Color.White, fontSize = 13.sp)
+                            if (game.redZone) Text("RED ZONE", color = Color(0xFFFF5A5F), fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
 
         // ---------------------------------------------------------------- Meldungen
         if (buffering && msg == null && !showGuide) {
