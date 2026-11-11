@@ -261,7 +261,9 @@ private fun AppContent() {
                 }
             }
         }
-        playing = PlayReq(title, playUrl, item.id, item.kind == Kind.LIVE, startMs, tmdb, season, ep, alts, note)
+        val gameInfo = SportsPlayback.nextGameInfo
+        SportsPlayback.nextGameInfo = null
+        playing = PlayReq(title, playUrl, item.id, item.kind == Kind.LIVE, startMs, tmdb, season, ep, alts, note, gameInfo = gameInfo)
     }
 
     /** EPG (Seitenleiste/Kachel): zuletzt gesehenen Sender (sonst den ersten) starten und gleich den TV-Guide zeigen. */
