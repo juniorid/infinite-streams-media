@@ -75,6 +75,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.C
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -1173,14 +1175,44 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                 }
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     item {
-                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM)).background(Color(0xFF26384B)).padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(game.away, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                            Text(game.awayScore, color = Color(0xFF9BE15D), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                            Text(game.home, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                            Text(game.homeScore, color = Color(0xFF9BE15D), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
-                            Text(listOf(game.status, game.detail, game.period, game.clock).filter { it.isNotBlank() }.joinToString(" · "),
-                                color = Color(0xFFB8C8B8), fontSize = 12.sp)
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusM))
+                            .background(Brush.verticalGradient(listOf(Color(0xFF30465B), Color(0xFF1B2A3B))))
+                            .border(1.dp, Color(0xFF52745B), RoundedCornerShape(DS.RadiusM)).padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("LIVE MATCHUP", color = Color(0xFF9BE15D), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                                Text(listOf(game.status, game.detail).filter { it.isNotBlank() }.joinToString(" · "),
+                                    color = Color(0xFFB8C8B8), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceEvenly) {
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    if (game.awayLogo.isNotBlank()) AsyncImage(model = game.awayLogo, contentDescription = game.away + " logo",
+                                        modifier = Modifier.size(42.dp), contentScale = ContentScale.Fit)
+                                    else Text("🛡️", fontSize = 30.sp)
+                                    Text(game.away, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    if (game.awayRecord.isNotBlank()) Text(game.awayRecord, color = Color(0xFFB8C8B8), fontSize = 10.sp)
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(game.awayScore + "  :  " + game.homeScore, color = Color(0xFFB9F36B),
+                                        fontSize = 25.sp, fontWeight = FontWeight.Black)
+                                    Text("VS", color = Color(0xFFB8C8B8), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    if (game.homeLogo.isNotBlank()) AsyncImage(model = game.homeLogo, contentDescription = game.home + " logo",
+                                        modifier = Modifier.size(42.dp), contentScale = ContentScale.Fit)
+                                    else Text("🛡️", fontSize = 30.sp)
+                                    Text(game.home, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    if (game.homeRecord.isNotBlank()) Text(game.homeRecord, color = Color(0xFFB8C8B8), fontSize = 10.sp)
+                                }
+                            }
+                            Text(listOf(game.period, game.clock).filter { it.isNotBlank() }.joinToString(" · "),
+                                color = Color(0xFFB8C8B8), fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
                         }
                     }
                     if (game.awayPeriodScores.isNotEmpty() || game.homePeriodScores.isNotEmpty()) item {
@@ -1208,10 +1240,28 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                     }
                     itemsIndexed(gameDetails, key = { index, section -> "game-detail-$index-${section.title}" }) { _, section ->
                         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(DS.RadiusS))
-                            .background(Color(0xFF202E40)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(section.title, color = Color(0xFF9BE15D), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            section.lines.forEach { line ->
-                                Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp)
+                            .background(Color(0xFF202E40)).border(1.dp, Color(0x243FAE62), RoundedCornerShape(DS.RadiusS))
+                            .padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                val sectionIcon = when {
+                                    section.title.contains("TEAM") -> "📊"
+                                    section.title.contains("PLAYER") -> "👤"
+                                    section.title.contains("LEADER") -> "🏆"
+                                    section.title.contains("SCORING") -> "⚽"
+                                    section.title.contains("PLAY-BY") || section.title.contains("COMMENTARY") -> "📣"
+                                    section.title.contains("WATCH") -> "📺"
+                                    section.title.contains("INFORMATION") -> "🏟️"
+                                    else -> "📌"
+                                }
+                                Text(sectionIcon, fontSize = 16.sp)
+                                Text(section.title, color = Color(0xFF9BE15D), fontWeight = FontWeight.ExtraBold, fontSize = 11.sp)
+                            }
+                            section.lines.forEachIndexed { lineIndex, line ->
+                                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("•", color = Color(0xFF9BE15D), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.weight(1f))
+                                }
+                                if (lineIndex < section.lines.lastIndex) Spacer(Modifier.height(1.dp))
                             }
                         }
                     }
