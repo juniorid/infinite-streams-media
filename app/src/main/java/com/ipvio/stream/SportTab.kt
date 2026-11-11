@@ -308,7 +308,7 @@ fun SportTab(live: List<Item>, onPlay: (Item, List<Item>) -> Unit) {
                 val featured = visibleScoreGames.firstOrNull { it.id == selectedPreviewGameId }
                     ?: visibleScoreGames.firstOrNull { it.state.equals("in", true) }
                     ?: visibleScoreGames.firstOrNull()
-                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull(), onOpen = { playScoreGame(featured) }, onGameCenter = { playScoreGame(featured, withInfo = true) })
+                if (featured != null) FeaturedGamePanel(featured, channelsForGame(featured).firstOrNull())
                 else Box(Modifier.fillMaxWidth().height(dpx(150)).clip(RoundedCornerShape(DS.RadiusM)).background(Color(0x221FFFFFFF)), contentAlignment = Alignment.Center) {
                     Text(if (scoreGames.isEmpty()) "Loading games…" else "No games listed for this league", color = Muted, fontSize = 14.sp)
                 }
@@ -963,21 +963,18 @@ private fun GameActionButton(title: String, subtitle: String, icon: String, onCl
 }
 
 @Composable
-private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?, onOpen: () -> Unit, onGameCenter: () -> Unit) {
-    var watchFocused by remember { mutableStateOf(false) }
-    var centerFocused by remember { mutableStateOf(false) }
+private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?) {
     Row(Modifier.fillMaxWidth().height(dpx(310)), horizontalArrangement = Arrangement.spacedBy(dpx(14))) {
         // Avoid a second video decoder inside the scrolling hub; it caused severe lag on TV devices.
         Box(Modifier.weight(1.15f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
             .background(Brush.linearGradient(listOf(Color(0xFF173E55), Color(0xFF101A35))))
-            .border(if (watchFocused) 3.dp else 1.dp, if (watchFocused) Color(0xFF9BE15D) else Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM))
-            .onFocusChanged { watchFocused = it.isFocused }.focusable().clickable(onClick = onOpen),
+            .border(1.dp, Color(0x337FA9D8), RoundedCornerShape(DS.RadiusM)),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(dpx(12))) {
-                Text(if (game.state.equals("in", true)) "● LIVE GAME" else "GAME CENTER", color = PT.Live, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
+                Text(if (game.state.equals("in", true)) "● LIVE GAME" else "GAME DETAILS", color = PT.Live, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                 Text(game.league, color = Color.White, fontSize = spx(24), fontWeight = FontWeight.Bold)
-                Text(if (previewChannel != null) "▶  WATCH " + previewChannel.title else "No matching sports channel", color = if (previewChannel != null) Color.White else Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(previewChannel?.title ?: "Game information", color = if (previewChannel != null) Color.White else Muted, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         Column(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(DS.RadiusM))
@@ -1001,10 +998,6 @@ private fun FeaturedGamePanel(game: SportLogic.ScoreGame, previewChannel: Item?,
                 }
             }
             if (football && game.redZone) Text("🔴 RED ZONE", color = Color(0xFFFF5A5F), fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(dpx(8))) {
-                GameActionButton("GAME", "Watch live", "▶", onOpen, Modifier.weight(1f))
-                GameActionButton("GAME CENTER", "Scores & stats", "▤", onGameCenter, Modifier.weight(1f))
-            }
             if (game.lastPlay.isNotBlank()) Column(verticalArrangement = Arrangement.spacedBy(dpx(3))) {
                 Text("LAST PLAY", color = Accent2, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                 Text(game.lastPlay, color = Color.White, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
