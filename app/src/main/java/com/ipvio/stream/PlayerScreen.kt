@@ -1264,22 +1264,26 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     }
                                     val groups = parsed.groupBy { it.second }
                                     if (groups.isEmpty()) {
-                                        section.lines.forEach { line -> Text(line, color = Color.White, fontSize = 12.sp) }
+                                        Text("Team comparison is not available for this game.", color = Color(0xFFB8C8B8), fontSize = 11.sp)
                                     } else groups.entries.forEach { (label, entries) ->
-                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            Text(label, color = Color(0xFFB8C8B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFF172536)).padding(9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(label.uppercase(), color = Color(0xFFB8C8B8), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
                                             val numeric = entries.mapNotNull { it.third.replace("%", "").replace(",", "").toDoubleOrNull() }
                                             val maxValue = (numeric.maxOrNull() ?: 0.0).coerceAtLeast(1.0)
-                                            entries.forEach { entry ->
-                                                val number = entry.third.replace("%", "").replace(",", "").toDoubleOrNull()
-                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                                                    Text(entry.first, color = Color.White, fontSize = 10.sp, maxLines = 1, modifier = Modifier.weight(1f))
-                                                    Text(entry.third, color = Color(0xFFB9F36B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                                }
-                                                if (number != null) {
-                                                    Box(Modifier.fillMaxWidth().height(5.dp).clip(CircleShape).background(Color(0xFF344454))) {
-                                                        Box(Modifier.fillMaxWidth((number / maxValue).toFloat().coerceIn(0f, 1f)).fillMaxHeight()
-                                                            .clip(CircleShape).background(Color(0xFF78C850)))
+                                            val teams = entries.take(2)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                teams.forEach { entry ->
+                                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        Text(entry.first, color = Color.White, fontSize = 10.sp, maxLines = 1)
+                                                        Text(entry.third, color = Color(0xFFB9F36B), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                                                        val number = entry.third.replace("%", "").replace(",", "").toDoubleOrNull()
+                                                        if (number != null) {
+                                                            Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(Color(0xFF344454))) {
+                                                                Box(Modifier.fillMaxWidth((number / maxValue).toFloat().coerceIn(0f, 1f)).fillMaxHeight()
+                                                                    .clip(CircleShape).background(Color(0xFF78C850)))
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1290,21 +1294,49 @@ fun PlayerScreen(req: PlayReq, zapList: List<Item>, liveAll: List<Item>, seriesI
                                     val grouped = section.lines.groupBy { line ->
                                         if (line.contains(" · ")) line.substringBefore(" · ") else "PLAYER DETAILS"
                                     }
-                                    grouped.forEach { (team, lines) ->
-                                        Text(team, color = Color(0xFFB9F36B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                        lines.forEach { line ->
-                                            val detail = if (line.contains(" · ")) line.substringAfter(" · ") else line
-                                            Text(detail, color = Color.White, fontSize = 11.sp, lineHeight = 15.sp)
+                                    if (grouped.isEmpty()) {
+                                        Text("Player statistics are not available yet.", color = Color(0xFFB8C8B8), fontSize = 11.sp)
+                                    } else grouped.forEach { (team, lines) ->
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text(team.uppercase(), color = Color(0xFFB9F36B), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold)
+                                            lines.forEach { line ->
+                                                val detail = if (line.contains(" · ")) line.substringAfter(" · ") else line
+                                                val playerName = detail.substringBefore(":").ifBlank { "Player" }
+                                                val statsText = detail.substringAfter(":", "")
+                                                val statItems = statsText.split(Regex("\\s{2,}")).filter { it.isNotBlank() }
+                                                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                                                    .background(Color(0xFF172536)).padding(9.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                                                    Text(playerName, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    if (statItems.isNotEmpty()) {
+                                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            statItems.take(4).forEach { stat ->
+                                                                Column(Modifier.weight(1f).clip(RoundedCornerShape(6.dp))
+                                                                    .background(Color(0xFF26394B)).padding(6.dp)) {
+                                                                    Text(stat.substringBeforeLast(" ").take(9), color = Color(0xFFB8C8B8), fontSize = 9.sp, maxLines = 1)
+                                                                    Text(stat.substringAfterLast(" "), color = Color(0xFFB9F36B), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                                                                }
+                                                            }
+                                                        }
+                                                    } else Text(statsText, color = Color.White, fontSize = 11.sp)
+                                                }
+                                            }
                                         }
                                     }
                                 }
                                 section.title.contains("SCORING PLAYS") -> {
                                     section.lines.forEachIndexed { index, line ->
                                         Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            Box(Modifier.size(22.dp).clip(CircleShape).background(Color(0xFF365A3C)), contentAlignment = Alignment.Center) {
-                                                Text((section.lines.size - index).toString(), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Box(Modifier.size(24.dp).clip(CircleShape).background(Color(0xFF4B8F3A)), contentAlignment = Alignment.Center) {
+                                                    Text("⚽", fontSize = 11.sp)
+                                                }
+                                                if (index < section.lines.lastIndex) Box(Modifier.width(2.dp).height(28.dp).background(Color(0xFF42634A)))
                                             }
-                                            Text(line, color = Color.White, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.weight(1f))
+                                            Column(Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0xFF172536)).padding(9.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                Text(line.substringBefore(" · ").ifBlank { "GAME EVENT" }, color = Color(0xFFB9F36B), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                Text(line.substringAfter(" · ", line), color = Color.White, fontSize = 12.sp, lineHeight = 16.sp)
+                                            }
                                         }
                                     }
                                 }
